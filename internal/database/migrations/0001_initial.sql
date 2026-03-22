@@ -1,3 +1,5 @@
+-- OpenILink Hub schema v1 (consolidated)
+
 CREATE TABLE IF NOT EXISTS users (
     id            TEXT PRIMARY KEY,
     username      TEXT NOT NULL UNIQUE,
@@ -57,31 +59,51 @@ CREATE TABLE IF NOT EXISTS bots (
 CREATE INDEX IF NOT EXISTS idx_bots_user ON bots(user_id);
 
 CREATE TABLE IF NOT EXISTS channels (
-    id          TEXT PRIMARY KEY,
-    bot_id      TEXT NOT NULL,
-    name        TEXT NOT NULL,
-    api_key     TEXT NOT NULL UNIQUE,
-    filter_rule JSONB NOT NULL DEFAULT '{}',
-    enabled     BOOLEAN NOT NULL DEFAULT TRUE,
-    last_seq    BIGINT NOT NULL DEFAULT 0,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id             TEXT PRIMARY KEY,
+    bot_id         TEXT NOT NULL,
+    name           TEXT NOT NULL,
+    handle         TEXT NOT NULL DEFAULT '',
+    api_key        TEXT NOT NULL UNIQUE,
+    filter_rule    JSONB NOT NULL DEFAULT '{}',
+    ai_config      JSONB NOT NULL DEFAULT '{}',
+    webhook_config JSONB NOT NULL DEFAULT '{}',
+    enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+    last_seq       BIGINT NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_channels_bot ON channels(bot_id);
 
+-- Messages table mirrors WeChat WeixinMessage 1:1
 CREATE TABLE IF NOT EXISTS messages (
-    id         BIGSERIAL PRIMARY KEY,
-    bot_id     TEXT NOT NULL,
-    channel_id TEXT DEFAULT NULL,
-    direction  TEXT NOT NULL,
-    sender     TEXT NOT NULL DEFAULT '',
-    recipient  TEXT NOT NULL DEFAULT '',
-    msg_type   TEXT NOT NULL DEFAULT 'text',
-    payload    JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id             BIGSERIAL PRIMARY KEY,
+    bot_id         TEXT NOT NULL,
+    channel_id     TEXT DEFAULT NULL,
+    direction      TEXT NOT NULL,
+    -- WeChat WeixinMessage fields
+    seq            BIGINT,
+    message_id     BIGINT,
+    from_user_id   TEXT NOT NULL DEFAULT '',
+    to_user_id     TEXT NOT NULL DEFAULT '',
+    client_id      TEXT NOT NULL DEFAULT '',
+    create_time_ms BIGINT,
+    update_time_ms BIGINT,
+    delete_time_ms BIGINT,
+    session_id     TEXT NOT NULL DEFAULT '',
+    group_id       TEXT NOT NULL DEFAULT '',
+    message_type   INT NOT NULL DEFAULT 0,
+    message_state  INT NOT NULL DEFAULT 0,
+    item_list      JSONB NOT NULL DEFAULT '[]',
+    context_token  TEXT NOT NULL DEFAULT '',
+    -- Operational
+    media_status   TEXT NOT NULL DEFAULT '',
+    media_keys     JSONB NOT NULL DEFAULT '{}',
+    raw            JSONB,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_bot ON messages(bot_id, id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(bot_id, sender);
+CREATE INDEX IF NOT EXISTS idx_messages_seq ON messages(bot_id, seq) WHERE seq IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_from ON messages(bot_id, from_user_id) WHERE from_user_id != '';
 
 CREATE TABLE IF NOT EXISTS system_config (
     key        TEXT PRIMARY KEY,

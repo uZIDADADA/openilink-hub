@@ -1,4 +1,0 @@
-ALTER TABLE channels ADD COLUMN IF NOT EXISTS webhook_config JSONB NOT NULL DEFAULT '{}';
-ALTER TABLE channels DROP COLUMN IF EXISTS webhook_url;
-ALTER TABLE channels DROP COLUMN IF EXISTS webhook_secret;
-ALTER TABLE channels DROP COLUMN IF EXISTS webhook_script;

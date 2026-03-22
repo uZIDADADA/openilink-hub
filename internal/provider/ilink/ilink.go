@@ -259,7 +259,7 @@ func (p *Provider) sendVoice(ctx context.Context, recipient, contextToken string
 						EncryptQueryParam: uploaded.DownloadEncryptedQueryParam,
 						AESKey:            base64.StdEncoding.EncodeToString([]byte(uploaded.AESKey)),
 					},
-					EncodeType: 6, // SILK
+					EncodeType: 4, // SILK
 					SampleRate: 24000,
 				},
 			}},
