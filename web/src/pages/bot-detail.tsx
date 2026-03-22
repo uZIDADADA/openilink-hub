@@ -109,7 +109,9 @@ export function BotDetailPage() {
   }
 
   useEffect(() => { loadBot(); loadChannels(); loadMessages(); }, [id]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
+  }, [messages]);
   useEffect(() => {
     const t = setInterval(loadMessages, 5000);
     return () => clearInterval(t);
