@@ -11,6 +11,7 @@ type Message struct {
 	Recipient string          `json:"recipient,omitempty"`
 	MsgType   string          `json:"msg_type"`
 	Payload   json.RawMessage `json:"payload"`
+	Raw       *json.RawMessage `json:"raw,omitempty"`
 	CreatedAt int64           `json:"created_at"`
 }
 
@@ -20,9 +21,9 @@ func (db *DB) SaveMessage(m *Message) (int64, error) {
 	}
 	var id int64
 	err := db.QueryRow(`
-		INSERT INTO messages (bot_id, channel_id, direction, sender, recipient, msg_type, payload)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-		m.BotID, m.ChannelID, m.Direction, m.Sender, m.Recipient, m.MsgType, m.Payload,
+		INSERT INTO messages (bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		m.BotID, m.ChannelID, m.Direction, m.Sender, m.Recipient, m.MsgType, m.Payload, m.Raw,
 	).Scan(&id)
 	return id, err
 }
@@ -40,14 +41,14 @@ func (db *DB) ListMessages(botID string, limit int, beforeID int64) ([]Message, 
 	var err error
 	if beforeID > 0 {
 		rows, err = db.Query(`
-			SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+			SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 			       EXTRACT(EPOCH FROM created_at)::BIGINT
 			FROM messages WHERE bot_id = $1 AND id < $2 ORDER BY id DESC LIMIT $3`,
 			botID, beforeID, limit,
 		)
 	} else {
 		rows, err = db.Query(`
-			SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+			SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 			       EXTRACT(EPOCH FROM created_at)::BIGINT
 			FROM messages WHERE bot_id = $1 ORDER BY id DESC LIMIT $2`,
 			botID, limit,
@@ -61,7 +62,7 @@ func (db *DB) ListMessages(botID string, limit int, beforeID int64) ([]Message, 
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.BotID, &m.ChannelID, &m.Direction,
-			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.CreatedAt); err != nil {
+			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.Raw, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)
@@ -74,7 +75,7 @@ func (db *DB) ListMessagesBySender(botID, sender string, limit int) ([]Message, 
 		limit = 50
 	}
 	rows, err := db.Query(`
-		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 		       EXTRACT(EPOCH FROM created_at)::BIGINT
 		FROM messages WHERE bot_id = $1 AND (sender = $2 OR recipient = $2)
 		ORDER BY id DESC LIMIT $3`,
@@ -88,7 +89,7 @@ func (db *DB) ListMessagesBySender(botID, sender string, limit int) ([]Message, 
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.BotID, &m.ChannelID, &m.Direction,
-			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.CreatedAt); err != nil {
+			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.Raw, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)
@@ -102,7 +103,7 @@ func (db *DB) ListChannelMessages(channelID, sender string, limit int) ([]Messag
 		limit = 50
 	}
 	rows, err := db.Query(`
-		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 		       EXTRACT(EPOCH FROM created_at)::BIGINT
 		FROM messages
 		WHERE channel_id = $1 AND (sender = $2 OR recipient = $2)
@@ -117,7 +118,7 @@ func (db *DB) ListChannelMessages(channelID, sender string, limit int) ([]Messag
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.BotID, &m.ChannelID, &m.Direction,
-			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.CreatedAt); err != nil {
+			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.Raw, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)
@@ -128,11 +129,11 @@ func (db *DB) ListChannelMessages(channelID, sender string, limit int) ([]Messag
 func (db *DB) GetMessage(id int64) (*Message, error) {
 	var m Message
 	err := db.QueryRow(`
-		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 		       EXTRACT(EPOCH FROM created_at)::BIGINT
 		FROM messages WHERE id = $1`, id,
 	).Scan(&m.ID, &m.BotID, &m.ChannelID, &m.Direction,
-		&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.CreatedAt)
+		&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.Raw, &m.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func (db *DB) GetMessagesSince(botID string, afterSeq int64, limit int) ([]Messa
 		limit = 100
 	}
 	rows, err := db.Query(`
-		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload,
+		SELECT id, bot_id, channel_id, direction, sender, recipient, msg_type, payload, raw,
 		       EXTRACT(EPOCH FROM created_at)::BIGINT
 		FROM messages WHERE bot_id = $1 AND id > $2 ORDER BY id ASC LIMIT $3`,
 		botID, afterSeq, limit,
@@ -172,7 +173,7 @@ func (db *DB) GetMessagesSince(botID string, afterSeq int64, limit int) ([]Messa
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.BotID, &m.ChannelID, &m.Direction,
-			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.CreatedAt); err != nil {
+			&m.Sender, &m.Recipient, &m.MsgType, &m.Payload, &m.Raw, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, m)

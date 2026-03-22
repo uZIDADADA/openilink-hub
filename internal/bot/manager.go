@@ -309,10 +309,11 @@ func (m *Manager) parseMessage(msg provider.InboundMessage) parsedMessage {
 // storeMessage saves the message to DB without any channel association.
 func (m *Manager) storeMessage(inst *Instance, msg provider.InboundMessage, p parsedMessage) int64 {
 	_ = m.db.IncrBotMsgCount(inst.DBID)
+	raw, _ := json.Marshal(msg)
 	seqID, _ := m.db.SaveMessage(&database.Message{
 		BotID: inst.DBID, Direction: "inbound",
 		Sender: msg.Sender, Recipient: msg.Recipient,
-		MsgType: p.msgType, Payload: p.payload,
+		MsgType: p.msgType, Payload: p.payload, Raw: (*json.RawMessage)(&raw),
 	})
 	return seqID
 }
@@ -415,10 +416,11 @@ func (m *Manager) deliverToChannels(inst *Instance, msg provider.InboundMessage,
 	}
 	for _, ch := range matched {
 		chID := ch.ID
+		raw, _ := json.Marshal(msg)
 		seqID, _ := m.db.SaveMessage(&database.Message{
 			BotID: inst.DBID, ChannelID: &chID, Direction: "inbound",
 			Sender: msg.Sender, Recipient: msg.Recipient,
-			MsgType: p.msgType, Payload: p.payload,
+			MsgType: p.msgType, Payload: p.payload, Raw: (*json.RawMessage)(&raw),
 		})
 		_ = m.db.UpdateChannelLastSeq(ch.ID, seqID)
 
