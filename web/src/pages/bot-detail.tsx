@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Send, Cable, Copy, Check, Plus, Trash2, RotateCw, Radio, X, Bot, Webhook } from "lucide-react";
+import { ArrowLeft, Send, Cable, Copy, Check, Plus, Trash2, RotateCw, Radio, X, Bot, Webhook, Paperclip } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -116,14 +116,32 @@ export function BotDetailPage() {
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || !id) return;
+    await doSend({ text: input });
+    setInput("");
+  }
+
+  async function handleFileSend(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    e.target.value = "";
+    const form = new FormData();
+    form.append("file", file);
+    if (input.trim()) {
+      form.append("text", input);
+      setInput("");
+    }
+    await doSend(form);
+  }
+
+  async function doSend(body: any) {
     setSending(true);
     setSendError("");
     try {
+      const isForm = body instanceof FormData;
       const res = await fetch("/api/bots/" + id + "/send", {
         method: "POST",
         credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: input }),
+        ...(isForm ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -136,7 +154,6 @@ export function BotDetailPage() {
           setSendError(msg || "发送失败");
         }
       } else {
-        setInput("");
         setTimeout(loadMessages, 500);
       }
     } catch {
@@ -195,6 +212,10 @@ export function BotDetailPage() {
             </div>
           )}
           <form onSubmit={handleSend} className="flex gap-2 p-3 border-t shrink-0">
+            <label className="cursor-pointer text-muted-foreground hover:text-foreground flex items-center">
+              <Paperclip className="w-4 h-4" />
+              <input type="file" className="hidden" onChange={handleFileSend} disabled={sending} />
+            </label>
             <Input
               value={input}
               onChange={(e) => { setInput(e.target.value); setSendError(""); }}

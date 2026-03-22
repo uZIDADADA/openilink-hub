@@ -63,8 +63,12 @@ type InboundMessage struct {
 }
 
 type OutboundMessage struct {
-	Recipient string
-	Text      string
+	Recipient    string
+	Text         string
+	ContextToken string
+	// Media (optional): if Data is set, sends as media file
+	Data     []byte
+	FileName string
 }
 
 type MessageItem struct {

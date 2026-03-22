@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/openilink/openilink-hub/internal/database"
-	"github.com/openilink/openilink-hub/internal/provider"
 )
 
 func encodeCursor(id int64) string {
@@ -98,6 +97,7 @@ func (s *Server) handleChannelMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 // POST /api/v1/channels/send?key=xxx
+// Supports JSON (text) or multipart/form-data (media).
 func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {
@@ -109,39 +109,36 @@ func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Text      string `json:"text"`
-		Recipient string `json:"recipient"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
-		jsonError(w, "text required", http.StatusBadRequest)
-		return
-	}
-
 	inst, ok := s.BotManager.GetInstance(ch.BotID)
 	if !ok {
 		jsonError(w, "bot not connected", http.StatusServiceUnavailable)
 		return
 	}
 
-	clientID, err := inst.Send(context.Background(), provider.OutboundMessage{
-		Recipient: req.Recipient,
-		Text:      req.Text,
-	})
+	msg, msgType, err := parseSendRequest(r)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	clientID, err := inst.Send(context.Background(), msg)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	// Log outbound message
+	content := msg.Text
+	if content == "" && msg.FileName != "" {
+		content = msg.FileName
+	}
 	chID := ch.ID
-	payload, _ := json.Marshal(map[string]string{"content": req.Text})
+	payload, _ := json.Marshal(map[string]string{"content": content})
 	s.DB.SaveMessage(&database.Message{
 		BotID:     ch.BotID,
 		ChannelID: &chID,
 		Direction: "outbound",
-		Recipient: req.Recipient,
-		MsgType:   "text",
+		Recipient: msg.Recipient,
+		MsgType:   msgType,
 		Payload:   payload,
 	})
 

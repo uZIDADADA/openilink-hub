@@ -134,6 +134,20 @@ func (p *Provider) Send(ctx context.Context, msg provider.OutboundMessage) (stri
 	if recipient == "" {
 		recipient = p.creds.ILinkUserID
 	}
+
+	// Media send
+	if len(msg.Data) > 0 && msg.FileName != "" {
+		err := p.client.SendMediaFile(ctx, recipient, msg.ContextToken, msg.Data, msg.FileName, msg.Text)
+		if err != nil {
+			return "", err
+		}
+		return "", nil
+	}
+
+	// Text send
+	if msg.ContextToken != "" {
+		return p.client.SendText(ctx, recipient, msg.Text, msg.ContextToken)
+	}
 	return p.client.Push(ctx, recipient, msg.Text)
 }
 

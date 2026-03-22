@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	ilinkProvider "github.com/openilink/openilink-hub/internal/provider/ilink"
 	"github.com/openilink/openilink-hub/internal/auth"
@@ -225,6 +227,10 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
+// POST /api/bots/{id}/send
+// Supports JSON body (text) or multipart/form-data (media).
+// JSON: {"text": "hello", "recipient": "optional"}
+// Multipart: file=@image.jpg, text=caption (optional), recipient=xxx (optional)
 func (s *Server) handleBotSend(w http.ResponseWriter, r *http.Request) {
 	botID := r.PathValue("id")
 	userID := auth.UserIDFromContext(r.Context())
@@ -235,41 +241,87 @@ func (s *Server) handleBotSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Recipient string `json:"recipient"`
-		Text      string `json:"text"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
-		jsonError(w, "text required", http.StatusBadRequest)
-		return
-	}
-
 	inst, ok := s.BotManager.GetInstance(botID)
 	if !ok {
 		jsonError(w, "bot not connected", http.StatusServiceUnavailable)
 		return
 	}
 
-	clientID, err := inst.Send(r.Context(), provider.OutboundMessage{
-		Recipient: req.Recipient,
-		Text:      req.Text,
-	})
+	msg, msgType, err := parseSendRequest(r)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	clientID, err := inst.Send(r.Context(), msg)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	payload, _ := json.Marshal(map[string]string{"content": req.Text})
+	// Save outbound message
+	content := msg.Text
+	if content == "" && msg.FileName != "" {
+		content = msg.FileName
+	}
+	payload, _ := json.Marshal(map[string]string{"content": content})
 	s.DB.SaveMessage(&database.Message{
 		BotID:     botID,
 		Direction: "outbound",
-		Recipient: req.Recipient,
-		MsgType:   "text",
+		Recipient: msg.Recipient,
+		MsgType:   msgType,
 		Payload:   payload,
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"ok": "true", "client_id": clientID})
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "client_id": clientID})
+}
+
+func parseSendRequest(r *http.Request) (provider.OutboundMessage, string, error) {
+	ct := r.Header.Get("Content-Type")
+
+	// Multipart: file upload
+	if strings.HasPrefix(ct, "multipart/") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB max
+			return provider.OutboundMessage{}, "", fmt.Errorf("parse multipart: %w", err)
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			return provider.OutboundMessage{}, "", fmt.Errorf("file required for multipart")
+		}
+		defer file.Close()
+		data, _ := io.ReadAll(file)
+
+		msgType := "file"
+		mime := header.Header.Get("Content-Type")
+		if strings.HasPrefix(mime, "image/") {
+			msgType = "image"
+		} else if strings.HasPrefix(mime, "video/") {
+			msgType = "video"
+		} else if strings.HasPrefix(mime, "audio/") {
+			msgType = "voice"
+		}
+
+		return provider.OutboundMessage{
+			Recipient: r.FormValue("recipient"),
+			Text:      r.FormValue("text"),
+			Data:      data,
+			FileName:  header.Filename,
+		}, msgType, nil
+	}
+
+	// JSON: text only
+	var req struct {
+		Recipient string `json:"recipient"`
+		Text      string `json:"text"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Text == "" {
+		return provider.OutboundMessage{}, "", fmt.Errorf("text required")
+	}
+	return provider.OutboundMessage{
+		Recipient: req.Recipient,
+		Text:      req.Text,
+	}, "text", nil
 }
 
 func (s *Server) handleBotContacts(w http.ResponseWriter, r *http.Request) {
