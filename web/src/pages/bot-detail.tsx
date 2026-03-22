@@ -34,19 +34,22 @@ function MessageContent({ m }: { m: Message }) {
   }
   if (mediaStatus === "failed") {
     return (
-      <div className="flex items-center gap-2 text-xs">
-        <span className="text-destructive">下载失败</span>
-        <button
-          className="text-primary hover:underline cursor-pointer"
-          onClick={async (e) => {
-            e.stopPropagation();
-            try {
-              await fetch(`/api/bots/${m.bot_id}/messages/${m.id}/retry_media`, {
-                method: "POST", credentials: "same-origin",
-              });
-            } catch {}
-          }}
-        >重试</button>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-destructive">下载失败</span>
+          <button
+            className="text-primary hover:underline cursor-pointer"
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                await fetch(`/api/bots/${m.bot_id}/messages/${m.id}/retry_media`, {
+                  method: "POST", credentials: "same-origin",
+                });
+              } catch {}
+            }}
+          >重试</button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">CDN 链接可能已过期，需要对方重新发送</p>
       </div>
     );
   }
