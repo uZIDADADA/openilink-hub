@@ -60,12 +60,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 
 	// --- Channel API (api_key auth) ---
-	mux.HandleFunc("GET /api/v1/connect", s.handleWebSocket)
-	mux.HandleFunc("GET /api/v1/messages", s.handleChannelMessages)
-	mux.HandleFunc("POST /api/v1/send", s.handleChannelSend)
-	mux.HandleFunc("POST /api/v1/typing", s.handleChannelTyping)
-	mux.HandleFunc("POST /api/v1/config", s.handleChannelConfig)
-	mux.HandleFunc("GET /api/v1/status", s.handleChannelStatus)
+	mux.HandleFunc("GET /api/v1/channels/connect", s.handleWebSocket)
+	mux.HandleFunc("GET /api/v1/channels/messages", s.handleChannelMessages)
+	mux.HandleFunc("POST /api/v1/channels/send", s.handleChannelSend)
+	mux.HandleFunc("POST /api/v1/channels/typing", s.handleChannelTyping)
+	mux.HandleFunc("POST /api/v1/channels/config", s.handleChannelConfig)
+	mux.HandleFunc("GET /api/v1/channels/status", s.handleChannelStatus)
 
 	// --- Protected routes ---
 	protected := http.NewServeMux()

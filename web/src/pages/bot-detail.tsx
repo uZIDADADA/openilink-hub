@@ -272,7 +272,7 @@ function WsProtocolDocs() {
 
       <div>
         <p className="font-medium text-foreground mt-3 mb-1">测试命令</p>
-        <pre className="bg-card p-2 rounded overflow-x-auto">node example/ws-test.mjs "ws://host:port/api/v1/connect?key=API_KEY"</pre>
+        <pre className="bg-card p-2 rounded overflow-x-auto">node example/ws-test.mjs "ws://host:port/api/v1/channels/connect?key=API_KEY"</pre>
       </div>
     </div>
   );
@@ -287,7 +287,7 @@ function ChannelRow({ botId, channel, onRefresh }: { botId: string; channel: any
   const [handleVal, setHandleVal] = useState(channel.handle || "");
 
   const wsProto = location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${wsProto}//${location.host}/api/v1/connect?key=${channel.api_key}`;
+  const wsUrl = `${wsProto}//${location.host}/api/v1/channels/connect?key=${channel.api_key}`;
   const aiEnabled = channel.ai_config?.enabled;
 
   async function saveHandle() {

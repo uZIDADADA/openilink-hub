@@ -45,7 +45,7 @@ func (s *Server) authenticateChannel(r *http.Request) (*database.Channel, error)
 	return ch, nil
 }
 
-// GET /api/v1/messages?key=xxx&cursor=xxx&limit=50
+// GET /api/v1/channels/messages?key=xxx&cursor=xxx&limit=50
 func (s *Server) handleChannelMessages(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {
@@ -97,7 +97,7 @@ func (s *Server) handleChannelMessages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /api/v1/send?key=xxx
+// POST /api/v1/channels/send?key=xxx
 func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {
@@ -152,7 +152,7 @@ func (s *Server) handleChannelSend(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /api/v1/typing?key=xxx
+// POST /api/v1/channels/typing?key=xxx
 func (s *Server) handleChannelTyping(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {
@@ -187,7 +187,7 @@ func (s *Server) handleChannelTyping(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w)
 }
 
-// POST /api/v1/config?key=xxx
+// POST /api/v1/channels/config?key=xxx
 func (s *Server) handleChannelConfig(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {
@@ -223,7 +223,7 @@ func (s *Server) handleChannelConfig(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(cfg)
 }
 
-// GET /api/v1/status?key=xxx
+// GET /api/v1/channels/status?key=xxx
 func (s *Server) handleChannelStatus(w http.ResponseWriter, r *http.Request) {
 	ch, err := s.authenticateChannel(r)
 	if ch == nil {

@@ -212,7 +212,7 @@ func (e *testEnv) createBotForUser(name string) *database.Bot {
 
 func (e *testEnv) connectWS(t *testing.T, apiKey string) *websocket.Conn {
 	t.Helper()
-	wsURL := "ws" + e.srv.URL[4:] + "/api/v1/connect?key=" + apiKey
+	wsURL := "ws" + e.srv.URL[4:] + "/api/v1/channels/connect?key=" + apiKey
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
@@ -940,7 +940,7 @@ func TestWebSocketInvalidKey(t *testing.T) {
 	env := setup(t)
 	defer env.close()
 
-	wsURL := "ws" + env.srv.URL[4:] + "/api/v1/connect?key=invalid"
+	wsURL := "ws" + env.srv.URL[4:] + "/api/v1/channels/connect?key=invalid"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Error("should fail with invalid key")
@@ -954,7 +954,7 @@ func TestWebSocketNoKey(t *testing.T) {
 	env := setup(t)
 	defer env.close()
 
-	wsURL := "ws" + env.srv.URL[4:] + "/api/v1/connect"
+	wsURL := "ws" + env.srv.URL[4:] + "/api/v1/channels/connect"
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Error("should fail without key")
@@ -1103,7 +1103,7 @@ func TestChannelHTTPStatus(t *testing.T) {
 	env.mgr.StartBot(context.Background(), botObj)
 	ch, _ := env.db.CreateChannel(botObj.ID, "HttpChan", "", nil, nil)
 
-	resp := httpGet(t, env.srv.URL+"/api/v1/status?key="+ch.APIKey)
+	resp := httpGet(t, env.srv.URL+"/api/v1/channels/status?key="+ch.APIKey)
 	defer resp.Body.Close()
 	assertCode(t, "channel status", resp.StatusCode, 200)
 	var status map[string]any
@@ -1116,12 +1116,12 @@ func TestChannelHTTPStatus(t *testing.T) {
 	}
 
 	// No key
-	resp2 := httpGet(t, env.srv.URL+"/api/v1/status")
+	resp2 := httpGet(t, env.srv.URL+"/api/v1/channels/status")
 	assertCode(t, "status no key", resp2.StatusCode, 401)
 	resp2.Body.Close()
 
 	// Invalid key
-	resp3 := httpGet(t, env.srv.URL+"/api/v1/status?key=invalid")
+	resp3 := httpGet(t, env.srv.URL+"/api/v1/channels/status?key=invalid")
 	assertCode(t, "status invalid key", resp3.StatusCode, 401)
 	resp3.Body.Close()
 }
@@ -1135,7 +1135,7 @@ func TestChannelHTTPStatusWithHeader(t *testing.T) {
 	env.mgr.StartBot(context.Background(), botObj)
 	ch, _ := env.db.CreateChannel(botObj.ID, "HeaderChan", "", nil, nil)
 
-	resp := httpGetWithHeader(t, env.srv.URL+"/api/v1/status", "X-API-Key", ch.APIKey)
+	resp := httpGetWithHeader(t, env.srv.URL+"/api/v1/channels/status", "X-API-Key", ch.APIKey)
 	defer resp.Body.Close()
 	assertCode(t, "status via header", resp.StatusCode, 200)
 }
@@ -1157,7 +1157,7 @@ func TestChannelHTTPMessages(t *testing.T) {
 	}
 
 	// First page
-	resp := httpGet(t, env.srv.URL+"/api/v1/messages?key="+ch.APIKey+"&limit=3")
+	resp := httpGet(t, env.srv.URL+"/api/v1/channels/messages?key="+ch.APIKey+"&limit=3")
 	defer resp.Body.Close()
 	assertCode(t, "channel messages", resp.StatusCode, 200)
 	var page1 map[string]any
@@ -1172,7 +1172,7 @@ func TestChannelHTTPMessages(t *testing.T) {
 	}
 
 	// Second page using cursor
-	resp2 := httpGet(t, env.srv.URL+"/api/v1/messages?key="+ch.APIKey+"&cursor="+cursor+"&limit=3")
+	resp2 := httpGet(t, env.srv.URL+"/api/v1/channels/messages?key="+ch.APIKey+"&cursor="+cursor+"&limit=3")
 	defer resp2.Body.Close()
 	var page2 map[string]any
 	json.NewDecoder(resp2.Body).Decode(&page2)
@@ -1186,7 +1186,7 @@ func TestChannelHTTPMessages(t *testing.T) {
 	}
 
 	// Invalid cursor
-	resp3 := httpGet(t, env.srv.URL+"/api/v1/messages?key="+ch.APIKey+"&cursor=bad!")
+	resp3 := httpGet(t, env.srv.URL+"/api/v1/channels/messages?key="+ch.APIKey+"&cursor=bad!")
 	assertCode(t, "invalid cursor", resp3.StatusCode, 400)
 	resp3.Body.Close()
 }
@@ -1201,7 +1201,7 @@ func TestChannelHTTPSend(t *testing.T) {
 	ch, _ := env.db.CreateChannel(botObj.ID, "SendChan", "", nil, nil)
 
 	// Send message
-	resp := httpPost(t, env.srv.URL+"/api/v1/send?key="+ch.APIKey,
+	resp := httpPost(t, env.srv.URL+"/api/v1/channels/send?key="+ch.APIKey,
 		map[string]string{"text": "hello via http"})
 	defer resp.Body.Close()
 	assertCode(t, "channel send", resp.StatusCode, 200)
@@ -1231,19 +1231,19 @@ func TestChannelHTTPSend(t *testing.T) {
 	}
 
 	// Send without text
-	resp2 := httpPost(t, env.srv.URL+"/api/v1/send?key="+ch.APIKey, map[string]string{})
+	resp2 := httpPost(t, env.srv.URL+"/api/v1/channels/send?key="+ch.APIKey, map[string]string{})
 	assertCode(t, "send no text", resp2.StatusCode, 400)
 	resp2.Body.Close()
 
 	// Invalid key
-	resp3 := httpPost(t, env.srv.URL+"/api/v1/send?key=invalid",
+	resp3 := httpPost(t, env.srv.URL+"/api/v1/channels/send?key=invalid",
 		map[string]string{"text": "x"})
 	assertCode(t, "send invalid key", resp3.StatusCode, 401)
 	resp3.Body.Close()
 
 	// Bot disconnected
 	env.mgr.StopBot(botObj.ID)
-	resp4 := httpPost(t, env.srv.URL+"/api/v1/send?key="+ch.APIKey,
+	resp4 := httpPost(t, env.srv.URL+"/api/v1/channels/send?key="+ch.APIKey,
 		map[string]string{"text": "fail"})
 	assertCode(t, "send bot disconnected", resp4.StatusCode, 503)
 	resp4.Body.Close()
@@ -1259,7 +1259,7 @@ func TestChannelHTTPDisabledChannel(t *testing.T) {
 
 	env.db.UpdateChannel(ch.ID, ch.Name, ch.Handle, &ch.FilterRule, &ch.AIConfig, false)
 
-	resp := httpGet(t, env.srv.URL+"/api/v1/status?key="+ch.APIKey)
+	resp := httpGet(t, env.srv.URL+"/api/v1/channels/status?key="+ch.APIKey)
 	assertCode(t, "disabled channel", resp.StatusCode, 401)
 	resp.Body.Close()
 }
