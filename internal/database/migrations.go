@@ -1,6 +1,7 @@
 package database
 
-const schema = `
+// initialSchema creates all tables from scratch (version 0 → 1).
+const initialSchema = `
 CREATE TABLE IF NOT EXISTS users (
     id            TEXT PRIMARY KEY,
     username      TEXT NOT NULL UNIQUE,
@@ -92,10 +93,17 @@ CREATE TABLE IF NOT EXISTS system_config (
     value      TEXT NOT NULL DEFAULT '',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
--- Ensure new columns exist on older schemas
-DO $$ BEGIN
-    ALTER TABLE channels ADD COLUMN IF NOT EXISTS handle TEXT NOT NULL DEFAULT '';
-EXCEPTION WHEN others THEN NULL;
-END $$;
 `
+
+// migrations is an ordered list. Each entry runs once, tracked by schema_version.
+// To add a new migration: append to this slice. Never modify existing entries.
+var migrations = []string{
+	// 1: initial schema
+	initialSchema,
+
+	// 2: add handle column to channels
+	`ALTER TABLE channels ADD COLUMN IF NOT EXISTS handle TEXT NOT NULL DEFAULT '';`,
+
+	// Add future migrations here:
+	// 3: ...
+}
