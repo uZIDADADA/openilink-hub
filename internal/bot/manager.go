@@ -3,22 +3,19 @@ package bot
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
-	"time"
 	"regexp"
 	"strings"
 	"sync"
 
-	"github.com/openilink/openilink-hub/internal/ai"
 	"github.com/openilink/openilink-hub/internal/database"
 	"github.com/openilink/openilink-hub/internal/provider"
 	"github.com/openilink/openilink-hub/internal/relay"
+	"github.com/openilink/openilink-hub/internal/sink"
 )
 
 var mentionRe = regexp.MustCompile(`@(\S+)`)
 
-// parseMentions extracts @handle mentions from text.
 func parseMentions(text string) []string {
 	matches := mentionRe.FindAllStringSubmatch(text, -1)
 	if len(matches) == 0 {
@@ -37,13 +34,15 @@ type Manager struct {
 	instances map[string]*Instance
 	db        *database.DB
 	hub       *relay.Hub
+	sinks     []sink.Sink
 }
 
-func NewManager(db *database.DB, hub *relay.Hub) *Manager {
+func NewManager(db *database.DB, hub *relay.Hub, sinks []sink.Sink) *Manager {
 	return &Manager{
 		instances: make(map[string]*Instance),
 		db:        db,
 		hub:       hub,
+		sinks:     sinks,
 	}
 }
 
@@ -128,7 +127,6 @@ func (m *Manager) StopAll() {
 	m.instances = make(map[string]*Instance)
 }
 
-// onStatusChange broadcasts bot status to all channels.
 func (m *Manager) onStatusChange(inst *Instance, status string) {
 	env := relay.NewEnvelope("bot_status", relay.BotStatusData{
 		BotID:  inst.DBID,
@@ -137,7 +135,7 @@ func (m *Manager) onStatusChange(inst *Instance, status string) {
 	m.hub.Broadcast(inst.DBID, env)
 }
 
-// onInbound routes an inbound message with filtering.
+// onInbound routes an inbound message with filtering, then delivers to sinks.
 func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 	// Determine primary msg type and content for storage
 	msgType := "text"
@@ -206,7 +204,7 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 		return
 	}
 
-	// If text contains @handle mentions, route only to mentioned channels
+	// Match channels by @handle or filter rules
 	mentioned := parseMentions(content)
 	var matched []database.Channel
 	if len(mentioned) > 0 {
@@ -220,7 +218,6 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 			}
 		}
 	} else {
-		// No @mention — use regular filter rules
 		for _, ch := range channels {
 			if matchFilter(ch.FilterRule, msg.Sender, content, msgType) {
 				matched = append(matched, ch)
@@ -228,105 +225,24 @@ func (m *Manager) onInbound(inst *Instance, msg provider.InboundMessage) {
 		}
 	}
 
-	// Deliver to matched channels + trigger AI auto-reply
+	// Deliver to all sinks
 	for _, ch := range matched {
-		m.hub.SendTo(ch.ID, env)
 		_ = m.db.UpdateChannelLastSeq(ch.ID, seqID)
 
-		if ch.AIConfig.Enabled && msgType == "text" && content != "" {
-			go m.aiReply(inst, ch, msg.Sender, msg.ContextToken, content)
+		d := sink.Delivery{
+			BotDBID:  inst.DBID,
+			Provider: inst.Provider,
+			Channel:  ch,
+			Message:  msg,
+			Envelope: env,
+			SeqID:    seqID,
+			MsgType:  msgType,
+			Content:  content,
+		}
+		for _, s := range m.sinks {
+			s.Handle(d)
 		}
 	}
-}
-
-// resolveAIConfig merges channel config with global builtin config if source is "builtin".
-func (m *Manager) resolveAIConfig(cfg database.AIConfig) database.AIConfig {
-	if cfg.Source != "builtin" {
-		return cfg
-	}
-	// Load global AI config from system_config
-	global, _ := m.db.ListConfigByPrefix("ai.")
-	if global["ai.api_key"] == "" {
-		return cfg // no global config, can't resolve
-	}
-	cfg.BaseURL = global["ai.base_url"]
-	cfg.APIKey = global["ai.api_key"]
-	cfg.Model = global["ai.model"]
-	// Use global system_prompt/max_history as defaults if channel doesn't set them
-	if cfg.SystemPrompt == "" {
-		cfg.SystemPrompt = global["ai.system_prompt"]
-	}
-	if cfg.MaxHistory <= 0 {
-		if v := global["ai.max_history"]; v != "" {
-			fmt.Sscanf(v, "%d", &cfg.MaxHistory)
-		}
-	}
-	return cfg
-}
-
-const typingTimeout = 30 * time.Second
-
-// aiReply calls the AI completion API and sends the reply through the bot.
-// It also sends typing indicators while the AI is processing.
-func (m *Manager) aiReply(inst *Instance, ch database.Channel, sender, contextToken, text string) {
-	resolved := m.resolveAIConfig(ch.AIConfig)
-	if resolved.APIKey == "" {
-		slog.Warn("ai reply skipped: no api key", "channel", ch.ID, "source", ch.AIConfig.Source)
-		return
-	}
-
-	ctx := context.Background()
-
-	// Show typing indicator with auto-cancel timeout
-	var typingTicket string
-	if contextToken != "" {
-		if cfg, err := inst.Provider.GetConfig(ctx, sender, contextToken); err == nil && cfg.TypingTicket != "" {
-			typingTicket = cfg.TypingTicket
-			inst.Provider.SendTyping(ctx, sender, typingTicket, true)
-			// Auto-cancel typing after timeout in case AI takes too long
-			go func() {
-				time.Sleep(typingTimeout)
-				inst.Provider.SendTyping(context.Background(), sender, typingTicket, false)
-			}()
-		}
-	}
-
-	reply, err := ai.Complete(ctx, resolved, m.db, inst.DBID, sender, text)
-
-	// Cancel typing (may already be cancelled by timeout goroutine, that's fine)
-	if typingTicket != "" {
-		inst.Provider.SendTyping(ctx, sender, typingTicket, false)
-	}
-
-	if err != nil {
-		slog.Error("ai completion failed", "channel", ch.ID, "err", err)
-		return
-	}
-	if reply == "" {
-		return
-	}
-
-	// Send reply through bot
-	_, err = inst.Send(ctx, provider.OutboundMessage{
-		Recipient: sender,
-		Text:      reply,
-	})
-	if err != nil {
-		slog.Error("ai reply send failed", "channel", ch.ID, "err", err)
-		return
-	}
-
-	// Save outbound message
-	chID := ch.ID
-	payload, _ := json.Marshal(map[string]string{"content": reply})
-	m.db.SaveMessage(&database.Message{
-		BotID:     inst.DBID,
-		ChannelID: &chID,
-		Direction: "outbound",
-		Recipient: sender,
-		MsgType:   "text",
-		Payload:   payload,
-	})
 }
 
 // matchFilter checks if a message passes the channel's filter rule.

@@ -21,6 +21,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/provider"
 	mockProvider "github.com/openilink/openilink-hub/internal/provider/mock"
 	"github.com/openilink/openilink-hub/internal/relay"
+	"github.com/openilink/openilink-hub/internal/sink"
 )
 
 // ==================== Test infrastructure ====================
@@ -70,7 +71,11 @@ func setup(t *testing.T) *testEnv {
 	}
 
 	hub := relay.NewHub(server.SetupUpstreamHandler())
-	mgr := bot.NewManager(db, hub)
+	sinks := []sink.Sink{
+		&sink.WS{Hub: hub},
+		&sink.AI{DB: db},
+	}
+	mgr := bot.NewManager(db, hub, sinks)
 	server.BotManager = mgr
 	server.Hub = hub
 

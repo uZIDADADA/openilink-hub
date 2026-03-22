@@ -1,0 +1,110 @@
+package sink
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/openilink/openilink-hub/internal/ai"
+	"github.com/openilink/openilink-hub/internal/database"
+	"github.com/openilink/openilink-hub/internal/provider"
+)
+
+const typingTimeout = 30 * time.Second
+
+// AI calls an OpenAI-compatible chat completion API and sends the reply
+// back through the bot. It also manages typing indicators.
+type AI struct {
+	DB *database.DB
+}
+
+func (s *AI) Name() string { return "ai" }
+
+func (s *AI) Handle(d Delivery) {
+	if !d.Channel.AIConfig.Enabled || d.MsgType != "text" || d.Content == "" {
+		return
+	}
+	go s.reply(d)
+}
+
+func (s *AI) reply(d Delivery) {
+	cfg := s.resolveConfig(d.Channel.AIConfig)
+	if cfg.APIKey == "" {
+		slog.Warn("ai reply skipped: no api key", "channel", d.Channel.ID, "source", d.Channel.AIConfig.Source)
+		return
+	}
+
+	ctx := context.Background()
+	sender := d.Message.Sender
+
+	// Typing indicator
+	var typingTicket string
+	if d.Message.ContextToken != "" {
+		if bcfg, err := d.Provider.GetConfig(ctx, sender, d.Message.ContextToken); err == nil && bcfg.TypingTicket != "" {
+			typingTicket = bcfg.TypingTicket
+			d.Provider.SendTyping(ctx, sender, typingTicket, true)
+			go func() {
+				time.Sleep(typingTimeout)
+				d.Provider.SendTyping(context.Background(), sender, typingTicket, false)
+			}()
+		}
+	}
+
+	reply, err := ai.Complete(ctx, cfg, s.DB, d.BotDBID, sender, d.Content)
+
+	if typingTicket != "" {
+		d.Provider.SendTyping(ctx, sender, typingTicket, false)
+	}
+
+	if err != nil {
+		slog.Error("ai completion failed", "channel", d.Channel.ID, "err", err)
+		return
+	}
+	if reply == "" {
+		return
+	}
+
+	_, err = d.Provider.Send(ctx, provider.OutboundMessage{
+		Recipient: sender,
+		Text:      reply,
+	})
+	if err != nil {
+		slog.Error("ai reply send failed", "channel", d.Channel.ID, "err", err)
+		return
+	}
+
+	chID := d.Channel.ID
+	payload, _ := json.Marshal(map[string]string{"content": reply})
+	s.DB.SaveMessage(&database.Message{
+		BotID:     d.BotDBID,
+		ChannelID: &chID,
+		Direction: "outbound",
+		Recipient: sender,
+		MsgType:   "text",
+		Payload:   payload,
+	})
+}
+
+func (s *AI) resolveConfig(cfg database.AIConfig) database.AIConfig {
+	if cfg.Source != "builtin" {
+		return cfg
+	}
+	global, _ := s.DB.ListConfigByPrefix("ai.")
+	if global["ai.api_key"] == "" {
+		return cfg
+	}
+	cfg.BaseURL = global["ai.base_url"]
+	cfg.APIKey = global["ai.api_key"]
+	cfg.Model = global["ai.model"]
+	if cfg.SystemPrompt == "" {
+		cfg.SystemPrompt = global["ai.system_prompt"]
+	}
+	if cfg.MaxHistory <= 0 {
+		if v := global["ai.max_history"]; v != "" {
+			fmt.Sscanf(v, "%d", &cfg.MaxHistory)
+		}
+	}
+	return cfg
+}

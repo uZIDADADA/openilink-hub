@@ -17,6 +17,7 @@ import (
 	"github.com/openilink/openilink-hub/internal/config"
 	"github.com/openilink/openilink-hub/internal/database"
 	"github.com/openilink/openilink-hub/internal/relay"
+	"github.com/openilink/openilink-hub/internal/sink"
 
 	// Register providers
 	_ "github.com/openilink/openilink-hub/internal/provider/ilink"
@@ -54,7 +55,11 @@ func main() {
 	}
 
 	hub := relay.NewHub(srv.SetupUpstreamHandler())
-	mgr := bot.NewManager(db, hub)
+	sinks := []sink.Sink{
+		&sink.WS{Hub: hub},
+		&sink.AI{DB: db},
+	}
+	mgr := bot.NewManager(db, hub, sinks)
 	srv.BotManager = mgr
 	srv.Hub = hub
 
