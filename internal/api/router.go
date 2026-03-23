@@ -61,6 +61,10 @@ func (s *Server) Handler() http.Handler {
 	// --- Public info ---
 	mux.HandleFunc("GET /api/info", s.handleInfo)
 
+	// --- Webhook plugins (public: list approved) ---
+	mux.HandleFunc("GET /api/webhook-plugins", s.handleListPlugins)
+	mux.HandleFunc("GET /api/webhook-plugins/{id}", s.handleGetPlugin)
+
 	// --- Media proxy (serves MinIO files through Hub) ---
 	mux.HandleFunc("GET /api/v1/media/", s.handleMediaProxy)
 
@@ -118,9 +122,7 @@ func (s *Server) Handler() http.Handler {
 	protected.HandleFunc("PUT /api/admin/users/{id}/password", s.requireAdmin(s.handleResetUserPassword))
 	protected.HandleFunc("DELETE /api/admin/users/{id}", s.requireAdmin(s.handleDeleteUser))
 
-	// --- Webhook plugins (marketplace) ---
-	protected.HandleFunc("GET /api/webhook-plugins", s.handleListPlugins)
-	protected.HandleFunc("GET /api/webhook-plugins/{id}", s.handleGetPlugin)
+	// --- Webhook plugins (authenticated actions) ---
 	protected.HandleFunc("POST /api/webhook-plugins/submit", s.handleSubmitPlugin)
 	protected.HandleFunc("POST /api/webhook-plugins/{id}/install", s.handleInstallPlugin)
 

@@ -86,7 +86,21 @@ func (s *Server) handleSubmitPlugin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(plugin)
 }
 
-// GET /api/plugins — list approved plugins (marketplace)
+// optionalUser tries to extract the current user from session cookie (for public endpoints).
+func (s *Server) optionalUser(r *http.Request) *database.User {
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		return nil
+	}
+	userID, err := auth.ValidateSession(s.DB, cookie.Value)
+	if err != nil {
+		return nil
+	}
+	user, _ := s.DB.GetUserByID(userID)
+	return user
+}
+
+// GET /api/webhook-plugins — list approved plugins (public), pending/rejected (admin only)
 func (s *Server) handleListPlugins(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	if status == "" {
@@ -94,7 +108,7 @@ func (s *Server) handleListPlugins(w http.ResponseWriter, r *http.Request) {
 	}
 	// Only admin can see pending/rejected
 	if status != "approved" {
-		user, _ := s.DB.GetUserByID(auth.UserIDFromContext(r.Context()))
+		user := s.optionalUser(r)
 		if user == nil || user.Role != database.RoleAdmin {
 			status = "approved"
 		}
@@ -123,10 +137,13 @@ func (s *Server) handleGetPlugin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := auth.UserIDFromContext(r.Context())
-	user, _ := s.DB.GetUserByID(userID)
+	user := s.optionalUser(r)
+	userID := ""
+	if user != nil {
+		userID = user.ID
+	}
 	isAdmin := user != nil && user.Role == database.RoleAdmin
-	isOwner := plugin.SubmittedBy == userID
+	isOwner := userID != "" && plugin.SubmittedBy == userID
 
 	// Only admin and owner can see pending/rejected plugins
 	if plugin.Status != "approved" && !isAdmin && !isOwner {

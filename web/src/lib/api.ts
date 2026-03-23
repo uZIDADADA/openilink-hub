@@ -78,7 +78,7 @@ export const api = {
   // Plugins
   listPlugins: (status?: string) => request<any[]>(`/api/webhook-plugins${status ? `?status=${status}` : ""}`),
   getPlugin: (id: string) => request<any>(`/api/webhook-plugins/${id}`),
-  submitPlugin: (github_url: string) => request<any>("/api/webhook-plugins/submit", { method: "POST", body: JSON.stringify({ github_url }) }),
+  submitPlugin: (data: { github_url?: string; script?: string }) => request<any>("/api/webhook-plugins/submit", { method: "POST", body: JSON.stringify(data) }),
   installPlugin: (id: string) => request<any>(`/api/webhook-plugins/${id}/install`, { method: "POST" }),
   reviewPlugin: (id: string, status: string, reason?: string) =>
     request(`/api/admin/webhook-plugins/${id}/review`, { method: "PUT", body: JSON.stringify({ status, reason: reason || "" }) }),
