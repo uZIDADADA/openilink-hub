@@ -230,9 +230,9 @@ func (db *DB) ListPluginVersions(pluginID string) ([]PluginVersion, error) {
 	return versions, rows.Err()
 }
 
-// ListPendingVersions returns all pending versions for admin review.
+// ListPendingVersions returns all pending versions for admin review (includes script).
 func (db *DB) ListPendingVersions() ([]PluginVersion, error) {
-	rows, err := db.Query(`SELECT v.id, v.plugin_id, v.version, v.changelog, '',
+	rows, err := db.Query(`SELECT v.id, v.plugin_id, v.version, v.changelog, v.script,
 		v.config_schema, v.github_url, v.commit_hash,
 		v.match_types, v.connect_domains, v.grant_perms, v.timeout_sec,
 		v.status, v.reject_reason, v.reviewed_by,

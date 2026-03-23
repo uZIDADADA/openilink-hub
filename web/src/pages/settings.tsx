@@ -137,7 +137,8 @@ function MyPluginsSection() {
       ) : (
         <div className="space-y-1">
           {plugins.map((p) => {
-            const s = statusMap[p.status] || statusMap.pending;
+            const hasApproved = !!p.latest_version_id;
+            const s = hasApproved ? statusMap.approved : statusMap.pending;
             return (
               <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border bg-background">
                 <div className="flex items-center gap-2 min-w-0">

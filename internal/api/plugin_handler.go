@@ -297,7 +297,8 @@ func (s *Server) handleInstallPluginToChannel(w http.ResponseWriter, r *http.Req
 	}
 
 	// Set version ID as plugin_id in webhook config
-	ch.WebhookConfig.PluginID = plugin.LatestVersionID
+	ch.WebhookConfig.PluginID = pluginID
+	ch.WebhookConfig.VersionID = plugin.LatestVersionID
 	ch.WebhookConfig.Script = ""
 	if err := s.DB.UpdateChannel(ch.ID, ch.Name, ch.Handle, &ch.FilterRule, &ch.AIConfig, &ch.WebhookConfig, ch.Enabled); err != nil {
 		jsonError(w, "update channel failed", http.StatusInternalServerError)

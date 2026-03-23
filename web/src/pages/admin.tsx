@@ -378,16 +378,20 @@ function PluginReviewTab() {
   }
   useEffect(() => { load(); }, [filter]);
 
-  async function openDetail(plugin: any) {
-    setSelected(plugin);
+  async function openDetail(version: any) {
+    setSelected(version);
     setShowReject(false);
     setRejectReason("");
-    try { setDetail(await api.getPlugin(plugin.id)); } catch { setDetail(plugin); }
+    // Merge plugin info with version info for display
+    try {
+      const pluginDetail = await api.getPlugin(version.plugin_id);
+      setDetail({ ...pluginDetail.plugin, ...version });
+    } catch { setDetail(version); }
   }
 
   async function handleApprove() {
     if (!selected) return;
-    await api.reviewPlugin(selected.id, "approved");
+    await api.reviewPlugin(selected.id, "approved"); // version ID
     setSelected(null); setDetail(null); load();
   }
 
@@ -463,8 +467,8 @@ function PluginReviewTab() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[10px] text-muted-foreground">{p.install_count} 安装</span>
-              <Button variant="ghost" size="sm" className="h-6" onClick={(e) => { e.stopPropagation(); handleDelete(p.id); }}>
+              <span className="text-[10px] text-muted-foreground">{new Date(p.created_at * 1000).toLocaleDateString()}</span>
+              <Button variant="ghost" size="sm" className="h-6" onClick={(e) => { e.stopPropagation(); handleDelete(p.plugin_id || p.id); }}>
                 <Trash2 className="w-3 h-3 text-destructive" />
               </Button>
             </div>

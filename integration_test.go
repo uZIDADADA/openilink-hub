@@ -2323,7 +2323,7 @@ function onResponse(ctx) {
 	env.mgr.StartBot(context.Background(), botObj)
 	ch, _ := env.db.CreateChannel(botObj.ID, "PlugChan", "", nil, nil)
 	env.db.UpdateChannel(ch.ID, ch.Name, ch.Handle, &ch.FilterRule, &ch.AIConfig,
-		&database.WebhookConfig{URL: hookSrv.URL, PluginID: versionID}, true)
+		&database.WebhookConfig{URL: hookSrv.URL, VersionID: versionID}, true)
 
 	inst, _ := env.mgr.GetInstance(botObj.ID)
 	mock := inst.Provider.(*mockProvider.Provider)
@@ -2540,7 +2540,7 @@ function onRequest(ctx) {
 
 	// Verify channel references version ID
 	updatedCh, _ := env.db.GetChannel(ch.ID)
-	if updatedCh.WebhookConfig.PluginID == "" {
+	if updatedCh.WebhookConfig.VersionID == "" {
 		t.Error("plugin_id not set")
 	}
 

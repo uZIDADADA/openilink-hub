@@ -874,7 +874,7 @@ function WebhookPanel({ botId, channelId, config, onSaved }: {
 
   useEffect(() => {
     if (pluginId) {
-      api.getPlugin(pluginId).then(setPluginInfo).catch(() => setPluginInfo(null));
+      api.getPlugin(pluginId).then((d) => setPluginInfo({ ...(d.plugin || {}), ...(d.latest_version || {}) })).catch(() => setPluginInfo(null));
     }
   }, [pluginId]);
 

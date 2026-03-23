@@ -102,7 +102,9 @@ function OverviewTab({ channel, botId, onRefresh }: { channel: any; botId: strin
 
   useEffect(() => {
     if (channel.webhook_config?.plugin_id) {
-      api.getPlugin(channel.webhook_config.plugin_id).then(setPluginInfo).catch(() => {});
+      api.getPlugin(channel.webhook_config.plugin_id).then((d) => {
+        setPluginInfo({ ...(d.plugin || {}), ...(d.latest_version || {}) });
+      }).catch(() => {});
     }
   }, [channel]);
 
@@ -252,6 +254,7 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
   const [scriptMode, setScriptMode] = useState<"plugin" | "manual">(cfg.plugin_id ? "plugin" : "manual");
   const [script, setScript] = useState(cfg.script || "");
   const [pluginId, setPluginId] = useState(cfg.plugin_id || "");
+  const [versionId, setVersionId] = useState(cfg.version_id || "");
   const [pluginInfo, setPluginInfo] = useState<any>(null);
   const [plugins, setPlugins] = useState<any[]>([]);
   const [showPicker, setShowPicker] = useState(false);
@@ -259,7 +262,10 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (pluginId) api.getPlugin(pluginId).then(setPluginInfo).catch(() => setPluginInfo(null));
+    if (pluginId) api.getPlugin(pluginId).then((d) => {
+      // Merge plugin + latest version
+      setPluginInfo({ ...(d.plugin || {}), ...(d.latest_version || {}) });
+    }).catch(() => setPluginInfo(null));
   }, [pluginId]);
   useEffect(() => {
     if (showPicker) api.listPlugins().then((l) => setPlugins(l || [])).catch(() => {});
@@ -276,6 +282,7 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
         webhook_config: {
           url, auth,
           plugin_id: scriptMode === "plugin" ? pluginId : undefined,
+          version_id: scriptMode === "plugin" ? versionId : undefined,
           script: scriptMode === "manual" ? (script || undefined) : undefined,
         },
       });
@@ -287,7 +294,7 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
   async function installPlugin(id: string) {
     try {
       const r = await api.installPluginToChannel(id, botId, channel.id);
-      setPluginId(r.plugin_id); setScriptMode("plugin"); setScript(""); setShowPicker(false);
+      setPluginId(r.plugin_id); setVersionId(r.version_id); setScriptMode("plugin"); setScript(""); setShowPicker(false);
       onRefresh();
     } catch (err: any) { setError(err.message); }
   }
@@ -359,7 +366,7 @@ function WebhookTab({ channel, botId, onRefresh }: { channel: any; botId: string
                 {pluginInfo.github_url && <a href={pluginInfo.github_url} target="_blank" rel="noopener" className="text-[10px] text-primary hover:underline">GitHub</a>}
                 <div className="ml-auto flex gap-1">
                   <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowPicker(true)}>更换</Button>
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-destructive" onClick={() => { setPluginId(""); setPluginInfo(null); setScriptMode("manual"); }}>卸载</Button>
+                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-destructive" onClick={() => { setPluginId(""); setVersionId(""); setPluginInfo(null); setScriptMode("manual"); }}>卸载</Button>
                 </div>
               </div>
             </div>

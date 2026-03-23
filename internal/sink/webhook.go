@@ -272,7 +272,7 @@ func joinKeys(m map[string]bool) string {
 
 func (s *Webhook) Handle(d Delivery) {
 	cfg := d.Channel.WebhookConfig
-	if cfg.URL == "" && cfg.PluginID == "" && cfg.Script == "" {
+	if cfg.URL == "" && cfg.VersionID == "" && cfg.Script == "" {
 		return
 	}
 	start := time.Now()
@@ -284,7 +284,7 @@ func (s *Webhook) Handle(d Delivery) {
 	}
 	pluginVersion := ""
 	logID, _ := s.DB.CreateWebhookLog(&database.WebhookLog{
-		BotID: d.BotDBID, ChannelID: d.Channel.ID, MessageID: msgID, PluginID: cfg.PluginID, PluginVersion: pluginVersion,
+		BotID: d.BotDBID, ChannelID: d.Channel.ID, MessageID: msgID, PluginID: cfg.VersionID, PluginVersion: pluginVersion,
 	})
 
 	msg := buildPayload(d)
@@ -304,10 +304,10 @@ func (s *Webhook) Handle(d Delivery) {
 	// Resolve script: PluginID is a version ID
 	script := cfg.Script
 	scriptTimeout := scriptTimeout // default 5s
-	if cfg.PluginID != "" {
-		resolvedScript, resolvedVersion, timeoutSec, err := s.DB.ResolvePluginScript(cfg.PluginID)
+	if cfg.VersionID != "" {
+		resolvedScript, resolvedVersion, timeoutSec, err := s.DB.ResolvePluginScript(cfg.VersionID)
 		if err != nil {
-			slog.Error("webhook plugin resolve failed", "channel", d.Channel.ID, "version_id", cfg.PluginID, "err", err)
+			slog.Error("webhook plugin resolve failed", "channel", d.Channel.ID, "version_id", cfg.VersionID, "err", err)
 		} else {
 			script = resolvedScript
 			pluginVersion = resolvedVersion

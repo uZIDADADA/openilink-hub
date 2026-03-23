@@ -28,7 +28,7 @@ export function PluginsPage({ embedded }: { embedded?: boolean }) {
   useEffect(() => { load(); }, [tab]);
 
   const isLoggedIn = !!user;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const content = (
     <div className="space-y-5">
@@ -195,11 +195,16 @@ function PluginCard({ plugin, onRefresh, isAdmin, isLoggedIn, mode }: {
   }
 
   async function toggleScript() {
-    if (!detail) { try { setDetail(await api.getPlugin(plugin.id)); } catch {} }
+    if (!detail) {
+      try {
+        const d = await api.getPlugin(plugin.id);
+        setDetail(d.latest_version || d); // version has script
+      } catch {}
+    }
     setShowScript(!showScript);
   }
 
-  const s = statusMap[plugin.status] || statusMap.pending;
+  const s = statusMap[plugin.status || "approved"];
   const config = plugin.config_schema || [];
   const grants = (plugin.grant_perms || "").split(",").filter(Boolean);
   const matchTypes = plugin.match_types || "*";
@@ -223,8 +228,7 @@ function PluginCard({ plugin, onRefresh, isAdmin, isLoggedIn, mode }: {
           <p className="text-xs text-muted-foreground mt-0.5">{plugin.description}</p>
           <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground flex-wrap">
             <span>作者: {plugin.author || "anonymous"}</span>
-            {plugin.submitter_name && <span>拥有者: {plugin.submitter_name}</span>}
-            {plugin.reviewer_name && <span>审核: {plugin.reviewer_name}</span>}
+            {(plugin.owner_name || plugin.submitter_name) && <span>拥有者: {plugin.owner_name || plugin.submitter_name}</span>}
             <span>{plugin.install_count} 次安装</span>
             <span>{new Date(plugin.created_at * 1000).toLocaleDateString()}</span>
             {(plugin.github_url || plugin.homepage) && (
