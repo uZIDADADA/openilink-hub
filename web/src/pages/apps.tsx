@@ -129,122 +129,124 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
   const [handle, setHandle] = useState(app.slug || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState<{ handle: string; command?: string } | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const tools = (app.tools || []) as any[];
+  const events = (app.events || []) as string[];
+  const scopes = (app.scopes || []) as string[];
 
   useEffect(() => {
-    api
-      .listBots()
-      .then((list) => {
-        const items = list || [];
-        setBots(items);
-        if (items.length > 0) setBotId(items[0].id);
-      })
-      .catch(() => {});
+    api.listBots().then((list) => {
+      const items = list || [];
+      setBots(items);
+      if (items.length > 0) setBotId(items[0].id);
+    }).catch(() => {});
   }, []);
 
   async function handleInstall() {
-    if (!botId) {
-      setError("请选择一个 Bot");
-      return;
-    }
-    setSaving(true);
-    setError("");
+    if (!botId) { setError("请选择一个 Bot"); return; }
+    setSaving(true); setError("");
     try {
       await api.installApp(app.id, { bot_id: botId, handle: handle.trim() || undefined });
-      const firstTool = app.tools?.find((t: any) => t.command);
-      const cmdName = firstTool?.command ? `/${firstTool.command}` : undefined;
-      setSuccess({ handle: handle.trim(), command: cmdName });
-    } catch (err: any) {
-      setError(err.message);
-    }
+      setSuccess(true);
+    } catch (err: any) { setError(err.message); }
     setSaving(false);
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-background border rounded-xl p-5 max-w-md w-full mx-4 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-background border rounded-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         {success ? (
-          <>
+          <div className="p-4 space-y-3">
             <p className="text-sm font-medium">安装成功！</p>
             <p className="text-xs text-muted-foreground">
-              {success.handle && (
-                <>
-                  发送 <code className="bg-secondary px-1 py-0.5 rounded">@{success.handle}</code>
-                </>
-              )}
-              {success.handle && success.command && " 或 "}
-              {success.command && (
-                <>
-                  发送 <code className="bg-secondary px-1 py-0.5 rounded">{success.command}</code>
-                </>
-              )}
-              {!success.handle && !success.command && "App 已安装"}
-              {(success.handle || success.command) && " 测试"}
+              在 Bot 的 Apps 页面管理此安装。
             </p>
             <div className="flex justify-end">
-              <Button size="sm" onClick={onClose}>
-                确认
-              </Button>
+              <Button size="sm" onClick={onClose}>确认</Button>
             </div>
-          </>
+          </div>
         ) : (
           <>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="p-4 border-b">
+              <div className="flex items-center gap-2">
                 <AppIcon icon={app.icon} iconUrl={app.icon_url} />
                 <div>
-                  <p className="text-sm font-medium">安装 {app.name}</p>
-                  {app.description && (
-                    <p className="text-xs text-muted-foreground">{app.description}</p>
-                  )}
+                  <span className="font-semibold text-sm">{app.name}</span>
+                  {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
                 </div>
               </div>
-              <button onClick={onClose} className="cursor-pointer">
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground">选择 Bot</label>
-              <select
-                value={botId}
-                onChange={(e) => setBotId(e.target.value)}
-                className="w-full h-8 rounded-md border border-input bg-transparent px-3 text-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring"
-              >
-                {bots.length === 0 && <option value="">无可用 Bot</option>}
-                {bots.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name || b.id}
-                  </option>
-                ))}
-              </select>
+            <div className="p-4 space-y-3">
+              {/* Tools */}
+              {tools.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1">工具 / 命令</p>
+                  <div className="space-y-1">
+                    {tools.map((t: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className="text-[10px] font-mono shrink-0">
+                          {t.command ? `/${t.command}` : t.name}
+                        </Badge>
+                        <span className="text-muted-foreground truncate">{t.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Events */}
+              {events.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1">事件订阅</p>
+                  <div className="flex flex-wrap gap-1">
+                    {events.map((e) => <Badge key={e} variant="secondary" className="text-[10px] font-mono">{e}</Badge>)}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">此 App 将接收所有匹配的消息事件</p>
+                </div>
+              )}
+
+              {/* Scopes */}
+              {scopes.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium mb-1">请求的权限</p>
+                  <div className="space-y-0.5">
+                    {scopes.map((s) => (
+                      <div key={s} className="text-xs flex items-center gap-1">
+                        <span className="font-mono">{s}</span>
+                        <span className="text-muted-foreground">
+                          {s === "messages.send" && "— 可通过 Bot 发送消息"}
+                          {s === "contacts.read" && "— 可读取联系人列表"}
+                          {s === "bot.read" && "— 可读取 Bot 信息"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Bot + Handle */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">选择 Bot</label>
+                <select value={botId} onChange={(e) => setBotId(e.target.value)}
+                  className="w-full h-8 rounded-md border border-input bg-transparent px-3 text-xs">
+                  {bots.length === 0 && <option value="">无可用 Bot</option>}
+                  {bots.map((b) => <option key={b.id} value={b.id}>{b.name || b.id}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Handle（用于 @提及，可清空）</label>
+                <Input placeholder="留空则只能通过 /command 触发" value={handle}
+                  onChange={(e) => setHandle(e.target.value)} className="h-8 text-xs font-mono" />
+              </div>
+
+              {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Handle（用于 @提及，可清空）</label>
-              <Input
-                placeholder={app.slug || "留空则只能通过 /command 触发"}
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-
-            {error && <p className="text-xs text-destructive">{error}</p>}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={onClose}>
-                取消
-              </Button>
-              <Button size="sm" onClick={handleInstall} disabled={saving}>
-                {saving ? "..." : "安装"}
-              </Button>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+              <Button size="sm" onClick={handleInstall} disabled={saving}>{saving ? "..." : "确认安装"}</Button>
             </div>
           </>
         )}
