@@ -1,9 +1,12 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -35,10 +38,13 @@ func (s *Server) handleBotAPISend(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var req struct {
-		To      string `json:"to"`
-		Type    string `json:"type"`
-		Content string `json:"content"`
-		TraceID string `json:"trace_id"`
+		To       string `json:"to"`
+		Type     string `json:"type"`
+		Content  string `json:"content"`
+		URL      string `json:"url"`
+		Base64   string `json:"base64"`
+		FileName string `json:"filename"`
+		TraceID  string `json:"trace_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		botAPIError(w, "invalid request body", http.StatusBadRequest)
@@ -50,13 +56,18 @@ func (s *Server) handleBotAPISend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Content == "" {
-		botAPIError(w, "content is required", http.StatusBadRequest)
+	if req.Type == "" {
+		req.Type = "text"
+	}
+
+	if req.Type == "text" && req.Content == "" {
+		botAPIError(w, "content is required for text messages", http.StatusBadRequest)
 		return
 	}
 
-	if req.Type == "" {
-		req.Type = "text"
+	if req.Type != "text" && req.Content == "" && req.URL == "" && req.Base64 == "" {
+		botAPIError(w, "content, url, or base64 is required", http.StatusBadRequest)
+		return
 	}
 
 	// Generate trace ID if not provided
@@ -88,12 +99,47 @@ func (s *Server) handleBotAPISend(w http.ResponseWriter, r *http.Request) {
 	// Auto-fill context_token from latest message if not available
 	contextToken := s.DB.GetLatestContextToken(inst.BotID)
 
-	// Send the message
-	clientID, err := botInst.Send(r.Context(), provider.OutboundMessage{
+	// Build outbound message
+	outMsg := provider.OutboundMessage{
 		Recipient:    req.To,
-		Text:         req.Content,
 		ContextToken: contextToken,
-	})
+	}
+
+	itemType := req.Type
+	if req.Type == "text" {
+		outMsg.Text = req.Content
+	} else {
+		// Media message: resolve data from base64, url, or content
+		var mediaData []byte
+		if req.Base64 != "" {
+			var decErr error
+			mediaData, decErr = base64Decode(req.Base64)
+			if decErr != nil {
+				botAPIError(w, "invalid base64: "+decErr.Error(), http.StatusBadRequest)
+				return
+			}
+		} else if req.URL != "" {
+			var dlErr error
+			mediaData, dlErr = downloadURL(r.Context(), req.URL)
+			if dlErr != nil {
+				botAPIError(w, "download failed: "+dlErr.Error(), http.StatusBadGateway)
+				return
+			}
+		} else {
+			// Fallback: send content as text
+			outMsg.Text = req.Content
+			itemType = "text"
+		}
+		if mediaData != nil {
+			outMsg.Data = mediaData
+			outMsg.FileName = req.FileName
+			if outMsg.FileName == "" {
+				outMsg.FileName = "file"
+			}
+		}
+	}
+
+	clientID, err := botInst.Send(r.Context(), outMsg)
 	if err != nil {
 		slog.Error("bot api: send failed", "bot_id", inst.BotID, "err", err)
 		botAPIError(w, "send failed: "+err.Error(), http.StatusBadGateway)
@@ -101,7 +147,14 @@ func (s *Server) handleBotAPISend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save outbound message to DB
-	itemList, _ := json.Marshal([]map[string]any{{"type": req.Type, "text": req.Content}})
+	item := map[string]any{"type": itemType}
+	if outMsg.Text != "" {
+		item["text"] = outMsg.Text
+	}
+	if outMsg.FileName != "" {
+		item["file_name"] = outMsg.FileName
+	}
+	itemList, _ := json.Marshal([]any{item})
 	s.DB.SaveMessage(&database.Message{
 		BotID:       inst.BotID,
 		Direction:   "outbound",
@@ -194,4 +247,23 @@ func (s *Server) handleBotAPIBotInfo(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBotAPINotFound(w http.ResponseWriter, r *http.Request) {
 	_ = time.Now() // ensure time import used
 	botAPIError(w, "unknown endpoint", http.StatusNotFound)
+}
+
+func base64Decode(s string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(s)
+}
+
+func downloadURL(ctx context.Context, url string) ([]byte, error) {
+	dlCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return io.ReadAll(io.LimitReader(resp.Body, 20*1024*1024))
 }

@@ -315,30 +315,45 @@ Return a JSON body with your reply. The platform sends it to the user immediatel
 For replies that take longer than 3 seconds, or when you need to send multiple messages, use the Bot API:
 
 ```python
-# Respond immediately with 200
-# Then send reply asynchronously
+import requests, base64
 
-import requests
+HUB = "https://hub.openilink.com"
+headers = {"Authorization": f"Bearer {app_token}"}
 
-def send_reply(app_token, to, text):
-    requests.post(
-        "https://hub.openilink.com/bot/v1/messages/send",
-        headers={"Authorization": f"Bearer {app_token}"},
-        json={"to": to, "type": "text", "content": text}
-    )
+# Text
+requests.post(f"{HUB}/bot/v1/messages/send", headers=headers,
+    json={"to": to, "type": "text", "content": "hello"})
 
-def send_image(app_token, to, image_url):
-    requests.post(
-        "https://hub.openilink.com/bot/v1/messages/send",
-        headers={"Authorization": f"Bearer {app_token}"},
-        json={"to": to, "type": "image", "url": image_url}
-    )
+# Image via URL
+requests.post(f"{HUB}/bot/v1/messages/send", headers=headers,
+    json={"to": to, "type": "image", "url": "https://example.com/pic.png", "filename": "pic.png"})
+
+# Image via base64
+with open("chart.png", "rb") as f:
+    b64 = base64.b64encode(f.read()).decode()
+requests.post(f"{HUB}/bot/v1/messages/send", headers=headers,
+    json={"to": to, "type": "image", "base64": b64, "filename": "chart.png"})
+
+# File
+requests.post(f"{HUB}/bot/v1/messages/send", headers=headers,
+    json={"to": to, "type": "file", "url": "https://example.com/report.pdf", "filename": "report.pdf"})
 ```
+
+`POST /bot/v1/messages/send` fields:
+
+| Field | Required | Description |
+|---|---|---|
+| `to` | Yes | Recipient WeChat ID |
+| `type` | No | `text` (default), `image`, `video`, `file` |
+| `content` | Yes* | Text content (*required for text type) |
+| `url` | No | Media URL (platform downloads) |
+| `base64` | No | Base64-encoded media data |
+| `filename` | No | Filename for media |
 
 Use async when:
 - Processing takes more than 3 seconds
 - You need to send multiple messages
-- You need to send media that requires server-side processing
+- You need to send different media types in sequence
 
 ### Event Types
 
@@ -418,13 +433,18 @@ Response:
 | Field | Required | Description |
 |---|---|---|
 | `to` | Yes | Recipient WeChat ID or group ID |
-| `type` | No | Message type: `text` (default), `image`, `file` |
-| `content` | Yes | Message content |
+| `type` | No | `text` (default), `image`, `video`, `file` |
+| `content` | Yes* | Text content (*required for text type) |
+| `url` | No | Media URL (platform downloads and sends) |
+| `base64` | No | Base64-encoded media data |
+| `filename` | No | Filename for media |
 | `trace_id` | No | Optional trace ID for correlation |
 
-For image/file messages (future):
+Examples:
 ```json
-{"to": "wxid_xxx", "type": "image", "url": "https://example.com/img.png"}
+{"to": "wxid_xxx", "type": "text", "content": "hello"}
+{"to": "wxid_xxx", "type": "image", "url": "https://example.com/img.png", "filename": "img.png"}
+{"to": "wxid_xxx", "type": "image", "base64": "iVBORw0KGgo...", "filename": "chart.png"}
 {"to": "wxid_xxx", "type": "file", "url": "https://example.com/report.pdf", "filename": "report.pdf"}
 ```
 
