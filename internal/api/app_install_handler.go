@@ -252,14 +252,14 @@ func (s *Server) handleVerifyURL(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Post(inst.RequestURL, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		slog.Error("verify-url: request failed", "inst", inst.ID, "url", inst.RequestURL, "err", err)
-		jsonError(w, "request failed: "+err.Error(), http.StatusBadGateway)
+		jsonError(w, "验证失败：无法连接到 "+inst.RequestURL+" ("+err.Error()+")", http.StatusUnprocessableEntity)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		slog.Error("verify-url: remote error", "inst", inst.ID, "url", inst.RequestURL, "status", resp.StatusCode)
-		jsonError(w, "remote returned HTTP "+strconv.Itoa(resp.StatusCode), http.StatusBadGateway)
+		jsonError(w, "验证失败：远端返回 HTTP "+strconv.Itoa(resp.StatusCode), http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -268,7 +268,7 @@ func (s *Server) handleVerifyURL(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		slog.Error("verify-url: invalid response", "inst", inst.ID, "url", inst.RequestURL, "err", err)
-		jsonError(w, "invalid response from remote", http.StatusBadGateway)
+		jsonError(w, "验证失败：远端返回了无效的响应", http.StatusUnprocessableEntity)
 		return
 	}
 
