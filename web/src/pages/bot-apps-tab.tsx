@@ -11,6 +11,7 @@ export function BotAppsTab({ botId }: { botId: string }) {
   const [installations, setInstallations] = useState<any[]>([]);
   const [apps, setApps] = useState<any[]>([]);
   const [showInstall, setShowInstall] = useState(false);
+  const [confirmApp, setConfirmApp] = useState<any>(null);
   const [installing, setInstalling] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -32,11 +33,12 @@ export function BotAppsTab({ botId }: { botId: string }) {
     load();
   }, [botId]);
 
-  async function handleInstall(appId: string, slug: string) {
+  async function doInstall(appId: string, handle: string) {
     setInstalling(appId);
     setError("");
     try {
-      await api.installApp(appId, { bot_id: botId, handle: slug });
+      await api.installApp(appId, { bot_id: botId, handle: handle || undefined });
+      setConfirmApp(null);
       setShowInstall(false);
       load();
     } catch (err: any) {
@@ -191,11 +193,10 @@ export function BotAppsTab({ botId }: { botId: string }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={installing === app.id}
-                      onClick={() => handleInstall(app.id, app.slug)}
+                      onClick={() => setConfirmApp(app)}
                       className="shrink-0"
                     >
-                      {installing === app.id ? "..." : "安装"}
+                      安装
                     </Button>
                   </div>
                 );
@@ -204,6 +205,115 @@ export function BotAppsTab({ botId }: { botId: string }) {
           </CardContent>
         </Card>
       )}
+
+      {/* Permission confirmation modal */}
+      {confirmApp && (
+        <InstallConfirmModal
+          app={confirmApp}
+          installing={installing === confirmApp.id}
+          error={error}
+          onConfirm={(handle) => doInstall(confirmApp.id, handle)}
+          onCancel={() => { setConfirmApp(null); setError(""); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function InstallConfirmModal({ app, installing, error, onConfirm, onCancel }: {
+  app: any; installing: boolean; error: string;
+  onConfirm: (handle: string) => void; onCancel: () => void;
+}) {
+  const [handle, setHandle] = useState(app.slug || "");
+  const tools = (app.tools || []) as any[];
+  const events = (app.events || []) as string[];
+  const scopes = (app.scopes || []) as string[];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="bg-background border rounded-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2">
+            {app.icon && <span className="text-lg">{app.icon}</span>}
+            <span className="font-semibold">{app.name}</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">{app.description}</p>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* Tools */}
+          {tools.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-1">工具 / 命令</p>
+              <div className="space-y-1">
+                {tools.map((t: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className="text-[10px] font-mono shrink-0">
+                      {t.command ? `/${t.command}` : t.name}
+                    </Badge>
+                    <span className="text-muted-foreground truncate">{t.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Events */}
+          {events.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-1">事件订阅</p>
+              <div className="flex flex-wrap gap-1">
+                {events.map((e) => (
+                  <Badge key={e} variant="secondary" className="text-[10px] font-mono">{e}</Badge>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                此 App 将接收所有匹配的消息事件
+              </p>
+            </div>
+          )}
+
+          {/* Scopes */}
+          {scopes.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-1">请求的权限</p>
+              <div className="space-y-0.5">
+                {scopes.map((s) => (
+                  <div key={s} className="flex items-center gap-2 text-xs">
+                    <CheckCircle className="w-3 h-3 text-primary shrink-0" />
+                    <span className="font-mono">{s}</span>
+                    <span className="text-muted-foreground">
+                      {s === "messages.send" && "— 可通过 Bot 发送消息"}
+                      {s === "contacts.read" && "— 可读取联系人列表"}
+                      {s === "bot.read" && "— 可读取 Bot 信息"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Handle */}
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Handle（用于 @提及，可清空）</label>
+            <Input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value)}
+              placeholder="留空则只能通过 /command 触发"
+              className="h-8 text-xs font-mono"
+            />
+          </div>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+
+        <div className="p-4 border-t flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={onCancel}>取消</Button>
+          <Button size="sm" disabled={installing} onClick={() => onConfirm(handle.trim())}>
+            {installing ? "安装中..." : "确认安装"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

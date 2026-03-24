@@ -56,7 +56,11 @@ export function AppDetailPage() {
           <ArrowLeft className="w-4 h-4" />
         </Link>
         {app.icon ? (
-          <img src={app.icon} alt="" className="w-8 h-8 rounded-lg object-cover" />
+          app.icon.startsWith("http") ? (
+            <img src={app.icon} alt="" className="w-8 h-8 rounded-lg object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-lg">{app.icon}</div>
+          )
         ) : (
           <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
             <Blocks className="w-4 h-4 text-muted-foreground" />

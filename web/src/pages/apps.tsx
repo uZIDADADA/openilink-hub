@@ -7,6 +7,12 @@ import { Badge } from "../components/ui/badge";
 import { Plus, Blocks, X, Download } from "lucide-react";
 import { api } from "../lib/api";
 
+function AppIcon({ icon, size = "w-8 h-8" }: { icon?: string; size?: string }) {
+  if (!icon) return <div className={`${size} rounded-lg bg-secondary flex items-center justify-center`}><Blocks className="w-4 h-4 text-muted-foreground" /></div>;
+  if (icon.startsWith("http")) return <img src={icon} alt="" className={`${size} rounded-lg object-cover`} />;
+  return <div className={`${size} rounded-lg bg-secondary flex items-center justify-center text-lg`}>{icon}</div>;
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -201,13 +207,7 @@ function InstallModal({ app, onClose }: { app: any; onClose: () => void }) {
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                {app.icon ? (
-                  <img src={app.icon} alt="" className="w-8 h-8 rounded-lg object-cover" />
-                ) : (
-                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                    <Blocks className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                )}
+                <AppIcon icon={app.icon} />
                 <div>
                   <p className="text-sm font-medium">安装 {app.name}</p>
                   {app.description && (
