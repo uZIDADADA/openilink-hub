@@ -3,7 +3,9 @@ package bot
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -57,9 +59,7 @@ func (m *Manager) deliverToApps(inst *Instance, msg provider.InboundMessage, p p
 
 	for i := range installations {
 		result := m.appDisp.DeliverWithRetry(&installations[i], event)
-		if result != nil && result.Reply != "" {
-			m.sendAppReply(inst, msg.Sender, result.Reply)
-		}
+		m.sendAppResult(inst, msg.Sender, result)
 	}
 }
 
@@ -102,9 +102,7 @@ func (m *Manager) tryDeliverMention(inst *Instance, msg provider.InboundMessage,
 			"handle":  handle,
 		})
 		result := m.appDisp.DeliverWithRetry(installation, event)
-		if result != nil && result.Reply != "" {
-			m.sendAppReply(inst, msg.Sender, result.Reply)
-		}
+		m.sendAppResult(inst, msg.Sender, result)
 		return true
 	}
 
@@ -117,9 +115,7 @@ func (m *Manager) tryDeliverMention(inst *Instance, msg provider.InboundMessage,
 	})
 
 	result := m.appDisp.DeliverWithRetry(installation, event)
-	if result != nil && result.Reply != "" {
-		m.sendAppReply(inst, msg.Sender, result.Reply)
-	}
+	m.sendAppResult(inst, msg.Sender, result)
 	return true
 }
 
@@ -143,26 +139,35 @@ func (m *Manager) tryDeliverCommand(inst *Instance, msg provider.InboundMessage,
 
 	for i := range installations {
 		result := m.appDisp.DeliverWithRetry(&installations[i], event)
-		if result != nil && result.Reply != "" {
-			m.sendAppReply(inst, msg.Sender, result.Reply)
-		}
+		m.sendAppResult(inst, msg.Sender, result)
 	}
 	return true
 }
 
-// sendAppReply sends a text reply from an App via the bot and stores it as outbound.
-func (m *Manager) sendAppReply(inst *Instance, to, text string) {
-	if text == "" {
+// sendAppResult sends a reply from an App via the bot and stores it as outbound.
+func (m *Manager) sendAppResult(inst *Instance, to string, result *appdelivery.DeliveryResult) {
+	if result == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	contextToken := m.db.GetLatestContextToken(inst.DBID)
+
+	switch result.ReplyType {
+	case "image", "video", "file":
+		m.sendAppMedia(ctx, inst, to, contextToken, result)
+	default:
+		if result.Reply == "" {
+			return
+		}
+		m.sendAppText(ctx, inst, to, contextToken, result.Reply)
+	}
+}
+
+func (m *Manager) sendAppText(ctx context.Context, inst *Instance, to, contextToken, text string) {
 	clientID, err := inst.Provider.Send(ctx, provider.OutboundMessage{
-		Recipient:    to,
-		Text:         text,
-		ContextToken: contextToken,
+		Recipient: to, Text: text, ContextToken: contextToken,
 	})
 	if err != nil {
 		slog.Error("app reply send failed", "bot", inst.DBID, "to", to, "err", err)
@@ -170,14 +175,61 @@ func (m *Manager) sendAppReply(inst *Instance, to, text string) {
 	}
 	slog.Info("app reply sent", "bot", inst.DBID, "to", to, "client_id", clientID)
 
-	// Save outbound message to DB
 	itemList, _ := json.Marshal([]map[string]any{{"type": "text", "text": text}})
 	m.db.SaveMessage(&database.Message{
-		BotID:       inst.DBID,
-		Direction:   "outbound",
-		ToUserID:    to,
-		MessageType: 2,
-		ItemList:    itemList,
+		BotID: inst.DBID, Direction: "outbound", ToUserID: to, MessageType: 2, ItemList: itemList,
+	})
+}
+
+func (m *Manager) sendAppMedia(ctx context.Context, inst *Instance, to, contextToken string, result *appdelivery.DeliveryResult) {
+	if result.ReplyURL == "" {
+		// No URL, send reply text as fallback
+		if result.Reply != "" {
+			m.sendAppText(ctx, inst, to, contextToken, result.Reply)
+		}
+		return
+	}
+
+	// Download media from URL
+	dlCtx, dlCancel := context.WithTimeout(ctx, 8*time.Second)
+	defer dlCancel()
+
+	req, err := http.NewRequestWithContext(dlCtx, http.MethodGet, result.ReplyURL, nil)
+	if err != nil {
+		slog.Error("app media download: bad url", "url", result.ReplyURL, "err", err)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		slog.Error("app media download failed", "url", result.ReplyURL, "err", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 20*1024*1024)) // 20MB max
+	if err != nil {
+		slog.Error("app media read failed", "err", err)
+		return
+	}
+
+	fileName := result.ReplyName
+	if fileName == "" {
+		fileName = "file"
+	}
+
+	clientID, err := inst.Provider.Send(ctx, provider.OutboundMessage{
+		Recipient: to, ContextToken: contextToken, Data: data, FileName: fileName,
+	})
+	if err != nil {
+		slog.Error("app media send failed", "bot", inst.DBID, "to", to, "err", err)
+		return
+	}
+	slog.Info("app media sent", "bot", inst.DBID, "to", to, "type", result.ReplyType, "size", len(data), "client_id", clientID)
+
+	itemType := result.ReplyType
+	itemList, _ := json.Marshal([]map[string]any{{"type": itemType, "file_name": fileName}})
+	m.db.SaveMessage(&database.Message{
+		BotID: inst.DBID, Direction: "outbound", ToUserID: to, MessageType: 2, ItemList: itemList,
 	})
 }
 

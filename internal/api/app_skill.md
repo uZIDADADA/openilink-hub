@@ -267,19 +267,72 @@ def handle():
     return jsonify({"ok": True})
 ```
 
-### Synchronous Reply
+### Replying to Events
 
-Your App can reply directly in the HTTP response:
+There are two ways to send replies: synchronous (in the HTTP response) and asynchronous (via Bot API).
 
+#### Method 1: Synchronous Reply (in HTTP response)
+
+Return a JSON body with your reply. The platform sends it to the user immediately.
+
+**Text reply:**
 ```json
-HTTP 200
 {"reply": "Here are the open PRs:\n1. fix bug\n2. add feature"}
 ```
 
-For media replies (future):
+**Image reply:**
 ```json
-{"reply": "...", "reply_type": "image", "reply_url": "https://..."}
+{"reply_type": "image", "reply_url": "https://example.com/chart.png", "reply_name": "chart.png"}
 ```
+
+**Video reply:**
+```json
+{"reply_type": "video", "reply_url": "https://example.com/demo.mp4", "reply_name": "demo.mp4"}
+```
+
+**File reply:**
+```json
+{"reply_type": "file", "reply_url": "https://example.com/report.pdf", "reply_name": "report.pdf"}
+```
+
+**Text + media:** You can include both `reply` (text) and `reply_url` (media). If `reply_type` is media but URL fails, `reply` text is sent as fallback.
+
+| Field | Required | Description |
+|---|---|---|
+| `reply` | No | Text message content |
+| `reply_type` | No | `text` (default), `image`, `video`, `file` |
+| `reply_url` | No | URL to media file (platform downloads and sends) |
+| `reply_name` | No | Filename for the media (e.g. `report.pdf`) |
+
+#### Method 2: Asynchronous Reply (via Bot API)
+
+For replies that take longer than 3 seconds, or when you need to send multiple messages, use the Bot API:
+
+```python
+# Respond immediately with 200
+# Then send reply asynchronously
+
+import requests
+
+def send_reply(app_token, to, text):
+    requests.post(
+        "https://hub.openilink.com/bot/v1/messages/send",
+        headers={"Authorization": f"Bearer {app_token}"},
+        json={"to": to, "type": "text", "content": text}
+    )
+
+def send_image(app_token, to, image_url):
+    requests.post(
+        "https://hub.openilink.com/bot/v1/messages/send",
+        headers={"Authorization": f"Bearer {app_token}"},
+        json={"to": to, "type": "image", "url": image_url}
+    )
+```
+
+Use async when:
+- Processing takes more than 3 seconds
+- You need to send multiple messages
+- You need to send media that requires server-side processing
 
 ### Event Types
 
