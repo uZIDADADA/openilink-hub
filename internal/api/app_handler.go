@@ -360,10 +360,12 @@ func (s *Server) requireInstallation(w http.ResponseWriter, r *http.Request, app
 		return nil
 	}
 
-	// Verify user owns the bot (admin can access all)
+	// Verify: admin, app owner, or bot owner
 	user, _ := s.DB.GetUserByID(userID)
 	isAdmin := user != nil && database.IsAdmin(user.Role)
-	if !isAdmin {
+	app, _ := s.DB.GetApp(appID)
+	isAppOwner := app != nil && app.OwnerID == userID
+	if !isAdmin && !isAppOwner {
 		bot, err := s.DB.GetBot(inst.BotID)
 		if err != nil || bot.UserID != userID {
 			jsonError(w, "installation not found", http.StatusNotFound)
