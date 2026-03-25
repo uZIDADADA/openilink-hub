@@ -236,7 +236,7 @@ export function BotTracesTab({ botId }: { botId: string }) {
       </div>
 
       <Dialog open={!!selectedTraceId} onOpenChange={(open: boolean) => !open && setSelectedTraceId(null)}>
-        <DialogContent className="sm:max-w-xl max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-xl max-h-[80vh] flex flex-col overflow-hidden">
           <DialogHeader className="mb-6">
             <div className="flex items-center gap-2 mb-1 text-primary">
               <Layers className="w-4 h-4" />
@@ -255,7 +255,7 @@ export function BotTracesTab({ botId }: { botId: string }) {
               <Skeleton className="h-8 w-[85%] ml-auto" />
             </div>
           ) : (
-            <ScrollArea className="flex-1 overflow-y-auto pr-4">
+            <ScrollArea className="min-h-0 flex-1 pr-4">
               <div className="space-y-1">
                 {(() => {
                   const tree = buildTree(traceSpans);

@@ -118,7 +118,7 @@ export function BotsPage() {
                 <Plus className="mr-2 h-4 w-4" /> 添加账号
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader className="text-left">
                 <DialogTitle className="text-xl">扫码登录</DialogTitle>
                 <DialogDescription>使用微信扫码登录。</DialogDescription>
