@@ -143,7 +143,12 @@ export function BotTracesTab({ botId }: { botId: string }) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [botId]);
+  useEffect(() => {
+    ++fetchIdRef.current;
+    setSelectedTraceId(null);
+    setTraceSpans([]);
+    load();
+  }, [botId]);
 
   async function handleRowClick(traceId: string) {
     const id = ++fetchIdRef.current;
