@@ -90,6 +90,8 @@ jobs:
       # Commit downloaded artifacts so GoReleaser sees clean git state
       - name: Commit artifacts for clean git state
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f internal/web/dist/ darwin-archives/
           git commit -m "ci: add build artifacts" --no-verify
 
