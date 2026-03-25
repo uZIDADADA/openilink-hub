@@ -264,7 +264,7 @@ function InstallDialog({ botId, open, onOpenChange, onInstalled }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>安装应用</DialogTitle>
           <DialogDescription>选择要安装的应用。</DialogDescription>

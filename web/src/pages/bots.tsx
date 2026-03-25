@@ -287,7 +287,7 @@ function BotInstanceCard({ bot, onRefresh, onRebind }: { bot: any; onRefresh: ()
         <Button 
           className="flex-1 h-9 rounded-lg gap-2 font-bold text-xs" 
           variant="secondary"
-          onClick={() => navigate(`/dashboard/accounts/${bot.id}/chat`)}
+          onClick={() => navigate(`/dashboard/accounts/${bot.id}`)}
         >
           查看详情 <ArrowUpRight className="h-3 w-3" />
         </Button>
