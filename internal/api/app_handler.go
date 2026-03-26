@@ -3,6 +3,7 @@ package api
 import (
 	_ "embed"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -102,7 +103,8 @@ func (s *Server) handleListApps(w http.ResponseWriter, r *http.Request) {
 		apps, err = s.Store.ListAppsByOwner(userID)
 	}
 	if err != nil {
-		jsonError(w, "list failed", http.StatusInternalServerError)
+		slog.Error("list apps failed", "err", err)
+		jsonError(w, "list failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if apps == nil {
