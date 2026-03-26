@@ -33,6 +33,8 @@ export function InstallAppPage() {
     return prefill;
   });
   const [installing, setInstalling] = useState(false);
+  const [waitingForOAuth, setWaitingForOAuth] = useState(false);
+  const [oauthPopup, setOAuthPopup] = useState<Window | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -54,6 +56,40 @@ export function InstallAppPage() {
     loadData();
   }, [loadData]);
 
+  // Listen for OAuth completion from popup
+  useEffect(() => {
+    if (!waitingForOAuth) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "oauth_complete") {
+        setWaitingForOAuth(false);
+        if (oauthPopup && !oauthPopup.closed) oauthPopup.close();
+        toast({ title: "安装成功" });
+        navigate(`/dashboard/accounts/${botId}`);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+
+    // Fallback: poll every 3s in case postMessage doesn't work
+    const interval = setInterval(async () => {
+      try {
+        const installations = await api.listBotApps(botId!);
+        if (installations?.find((i: any) => i.app_id === appId)) {
+          clearInterval(interval);
+          setWaitingForOAuth(false);
+          if (oauthPopup && !oauthPopup.closed) oauthPopup.close();
+          toast({ title: "安装成功" });
+          navigate(`/dashboard/accounts/${botId}`);
+        }
+      } catch {}
+    }, 3000);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      clearInterval(interval);
+    };
+  }, [waitingForOAuth, oauthPopup, botId, appId, navigate, toast]);
+
   async function handleInstall() {
     setInstalling(true);
     try {
@@ -63,9 +99,12 @@ export function InstallAppPage() {
         scopes: app.scopes || [],
       });
 
-      // If app requires OAuth setup, redirect to Hub's OAuth endpoint
+      // If app requires OAuth setup, open popup for OAuth flow
       if (result?.needs_oauth && result?.oauth_redirect) {
-        window.location.href = result.oauth_redirect;
+        setWaitingForOAuth(true);
+        const popup = window.open(result.oauth_redirect, "oauth_popup", "width=600,height=700,scrollbars=yes");
+        setOAuthPopup(popup);
+        setInstalling(false);
         return;
       }
 
@@ -92,6 +131,22 @@ export function InstallAppPage() {
     } finally {
       setInstalling(false);
     }
+  }
+
+  if (waitingForOAuth) {
+    return (
+      <div className="max-w-xl mx-auto py-20 text-center space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+        <h2 className="text-lg font-bold">等待授权完成</h2>
+        <p className="text-sm text-muted-foreground">请在弹出窗口中完成应用授权。完成后此页面将自动更新。</p>
+        <Button variant="outline" size="sm" onClick={() => {
+          setWaitingForOAuth(false);
+          if (oauthPopup && !oauthPopup.closed) oauthPopup.close();
+        }}>
+          取消
+        </Button>
+      </div>
+    );
   }
 
   if (loading) {

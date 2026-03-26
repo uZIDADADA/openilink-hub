@@ -78,6 +78,9 @@ func (s *Server) Handler() http.Handler {
 	// --- App skill.md ---
 	mux.HandleFunc("GET /api/apps/skill.md", handleAppSkill)
 
+	// --- OAuth complete (popup callback page, no auth needed) ---
+	mux.HandleFunc("GET /oauth/complete", s.handleOAuthComplete)
+
 	// --- Media proxy (serves MinIO files through Hub) ---
 	mux.HandleFunc("GET /api/v1/media/", s.handleMediaProxy)
 

@@ -196,7 +196,7 @@ func (s *Server) handleAppOAuthSetupRedirect(w http.ResponseWriter, r *http.Requ
 		jsonError(w, "app has invalid oauth_setup_url", http.StatusInternalServerError)
 		return
 	}
-	returnURL := hubURL + "/dashboard/accounts/" + botID
+	returnURL := hubURL + "/oauth/complete"
 	q := setupURL.Query()
 	q.Set("hub", hubURL)
 	q.Set("app_id", appID)
@@ -205,4 +205,26 @@ func (s *Server) handleAppOAuthSetupRedirect(w http.ResponseWriter, r *http.Requ
 	q.Set("return_url", returnURL)
 	setupURL.RawQuery = q.Encode()
 	http.Redirect(w, r, setupURL.String(), http.StatusFound)
+}
+
+// GET /oauth/complete — OAuth callback page shown in popup after App completes OAuth.
+// Sends postMessage to opener and closes the popup window.
+func (s *Server) handleOAuthComplete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head><title>安装完成</title></head>
+<body>
+<p style="font-family:system-ui;text-align:center;margin-top:40vh;color:#666">安装完成，正在返回...</p>
+<script>
+if (window.opener) {
+    window.opener.postMessage({type:"oauth_complete"}, "*");
+    setTimeout(function(){ window.close(); }, 500);
+} else {
+    // Not in a popup — redirect to dashboard
+    window.location.href = "/dashboard";
+}
+</script>
+</body>
+</html>`))
 }

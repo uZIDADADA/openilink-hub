@@ -326,10 +326,11 @@ Each event includes `installation_id` to differentiate. Suitable for hosted thir
 
 For Apps that need user authorization during installation:
 
-1. Hub redirects user to your `oauth_setup_url`:
+1. Hub redirects user to your `oauth_setup_url` (in a popup window):
    ```
-   {oauth_setup_url}?hub={hub_url}&app_id={app_id}&bot_id={bot_id}&state={state}
+   {oauth_setup_url}?hub={hub_url}&app_id={app_id}&bot_id={bot_id}&state={state}&return_url={return_url}
    ```
+   **Save `return_url`** — you will redirect to it after the OAuth exchange.
 
 2. Your App generates a PKCE `code_verifier` and `code_challenge`:
    ```
@@ -362,6 +363,14 @@ For Apps that need user authorization during installation:
      "bot_id": "bot_xxx"
    }
    ```
+
+6. **After exchange, redirect to `return_url`** to close the popup and return the user to Hub:
+   ```python
+   return_url = request.args.get("return_url")
+   # ... after exchange succeeds ...
+   return redirect(return_url)
+   ```
+   This is required. The `return_url` points to Hub's OAuth complete page, which sends a `postMessage` to the opener window and closes the popup automatically. If you skip this step, the user will be stuck in the popup window.
 
 If no `code_challenge` was provided during authorize, the code exchange succeeds without PKCE verification (backward compatible).
 
@@ -587,6 +596,7 @@ PUT /api/admin/config/registry
 | GET | `/api/apps/{id}/oauth/setup` | Redirect to app's setup URL |
 | GET | `/api/apps/{id}/oauth/authorize` | Authorize (with PKCE code_challenge) |
 | POST | `/api/apps/{id}/oauth/exchange` | Exchange code (with PKCE code_verifier) |
+| GET | `/oauth/complete` | OAuth callback page (closes popup, returns user to Hub) |
 
 ### Marketplace
 
