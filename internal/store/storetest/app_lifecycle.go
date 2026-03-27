@@ -281,6 +281,15 @@ func TestAppLifecycle(t *testing.T, s store.Store) {
 		if len(tools) != 2 {
 			t.Errorf("expected 2 tools, got %d", len(tools))
 		}
+		if got.Version != "2.0.0" {
+			t.Errorf("version = %q, want %q", got.Version, "2.0.0")
+		}
+		if got.Readme != "updated readme" {
+			t.Errorf("readme = %q, want %q", got.Readme, "updated readme")
+		}
+		if got.Guide != "updated guide" {
+			t.Errorf("guide = %q, want %q", got.Guide, "updated guide")
+		}
 	})
 
 	t.Run("ListAppsByOwner", func(t *testing.T) {

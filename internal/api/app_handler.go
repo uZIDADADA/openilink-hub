@@ -327,13 +327,15 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 			slog.Info("listed app core fields changed, reverted to pending", "app", appID)
 			updatedApp, _ := s.Store.GetApp(appID)
 			if updatedApp != nil {
-				s.Store.CreateAppReview(&store.AppReview{
+				if err := s.Store.CreateAppReview(&store.AppReview{
 					AppID:    appID,
 					Action:   "auto_revert",
 					ActorID:  "system",
 					Version:  updatedApp.Version,
 					Snapshot: buildListingSnapshot(updatedApp),
-				})
+				}); err != nil {
+					slog.Warn("failed to create app review record", "app", appID, "action", "auto_revert", "err", err)
+				}
 			}
 		}
 	}
@@ -417,13 +419,15 @@ func (s *Server) handleRequestListing(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "request failed", http.StatusInternalServerError)
 		return
 	}
-	s.Store.CreateAppReview(&store.AppReview{
+	if err := s.Store.CreateAppReview(&store.AppReview{
 		AppID:    app.ID,
 		Action:   "request",
 		ActorID:  auth.UserIDFromContext(r.Context()),
 		Version:  app.Version,
 		Snapshot: buildListingSnapshot(app),
-	})
+	}); err != nil {
+		slog.Warn("failed to create app review record", "app", app.ID, "action", "request", "err", err)
+	}
 	jsonOK(w)
 }
 
@@ -441,13 +445,15 @@ func (s *Server) handleWithdrawListing(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "withdraw failed", http.StatusInternalServerError)
 		return
 	}
-	s.Store.CreateAppReview(&store.AppReview{
+	if err := s.Store.CreateAppReview(&store.AppReview{
 		AppID:    app.ID,
 		Action:   "withdraw",
 		ActorID:  auth.UserIDFromContext(r.Context()),
 		Version:  app.Version,
 		Snapshot: buildListingSnapshot(app),
-	})
+	}); err != nil {
+		slog.Warn("failed to create app review record", "app", app.ID, "action", "withdraw", "err", err)
+	}
 	jsonOK(w)
 }
 
@@ -477,14 +483,16 @@ func (s *Server) handleReviewListing(w http.ResponseWriter, r *http.Request) {
 		action = "reject"
 	}
 	if app != nil {
-		s.Store.CreateAppReview(&store.AppReview{
+		if err := s.Store.CreateAppReview(&store.AppReview{
 			AppID:    appID,
 			Action:   action,
 			ActorID:  actorID,
 			Reason:   req.Reason,
 			Version:  app.Version,
 			Snapshot: buildListingSnapshot(app),
-		})
+		}); err != nil {
+			slog.Warn("failed to create app review record", "app", appID, "action", action, "err", err)
+		}
 	}
 	jsonOK(w)
 }
@@ -587,14 +595,16 @@ func (s *Server) handleAdminSetListing(w http.ResponseWriter, r *http.Request) {
 	slog.Info("admin set listing", "app_id", appID, "listing", req.Listing)
 	app, _ := s.Store.GetApp(appID)
 	if app != nil {
-		s.Store.CreateAppReview(&store.AppReview{
+		if err := s.Store.CreateAppReview(&store.AppReview{
 			AppID:    appID,
 			Action:   "admin_set",
 			ActorID:  auth.UserIDFromContext(r.Context()),
 			Reason:   req.Listing,
 			Version:  app.Version,
 			Snapshot: buildListingSnapshot(app),
-		})
+		}); err != nil {
+			slog.Warn("failed to create app review record", "app", appID, "action", "admin_set", "err", err)
+		}
 	}
 	jsonOK(w)
 }
