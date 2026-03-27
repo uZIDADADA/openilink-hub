@@ -543,6 +543,10 @@ func (s *Server) handleSetBotAI(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "update failed", http.StatusInternalServerError)
 		return
 	}
+	// Sync to in-memory instance so it takes effect immediately
+	if inst, ok := s.BotManager.GetInstance(botID); ok {
+		inst.AIEnabled = req.Enabled
+	}
 	jsonOK(w)
 }
 
