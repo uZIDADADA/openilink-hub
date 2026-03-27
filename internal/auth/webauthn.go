@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"sync"
 	"time"
@@ -66,8 +67,12 @@ func LoadWebAuthnUser(s store.CredentialStore, user *store.User) (*WebAuthnUser,
 		var transports []protocol.AuthenticatorTransport
 		_ = json.Unmarshal([]byte(dc.Transport), &transports)
 
+		credID, _ := base64.RawURLEncoding.DecodeString(dc.ID)
+		if len(credID) == 0 {
+			credID = []byte(dc.ID) // fallback for legacy binary IDs
+		}
 		creds = append(creds, webauthn.Credential{
-			ID:              []byte(dc.ID),
+			ID:              credID,
 			PublicKey:       dc.PublicKey,
 			AttestationType: dc.AttestationType,
 			Transport:       transports,

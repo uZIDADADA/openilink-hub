@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 
@@ -86,7 +87,7 @@ func (s *Server) handleRegisterFinish(w http.ResponseWriter, r *http.Request) {
 
 	transportsJSON, _ := json.Marshal(cred.Transport)
 	if err := s.Store.SaveCredential(&store.Credential{
-		ID:              string(cred.ID),
+		ID:              base64.RawURLEncoding.EncodeToString(cred.ID),
 		UserID:          user.ID,
 		PublicKey:       cred.PublicKey,
 		AttestationType: cred.AttestationType,
@@ -265,7 +266,7 @@ func (s *Server) handlePasskeyBindFinish(w http.ResponseWriter, r *http.Request)
 
 	transportsJSON, _ := json.Marshal(cred.Transport)
 	if err := s.Store.SaveCredential(&store.Credential{
-		ID:              string(cred.ID),
+		ID:              base64.RawURLEncoding.EncodeToString(cred.ID),
 		UserID:          user.ID,
 		PublicKey:       cred.PublicKey,
 		AttestationType: cred.AttestationType,
