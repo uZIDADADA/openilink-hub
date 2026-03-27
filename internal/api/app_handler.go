@@ -323,7 +323,11 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if coreChanged {
-			_ = s.Store.SetListing(appID, "pending")
+			if err := s.Store.SetListing(appID, "pending"); err != nil {
+				slog.Error("failed to revert listing to pending", "app", appID, "err", err)
+				jsonError(w, "failed to revert listing", http.StatusInternalServerError)
+				return
+			}
 			slog.Info("listed app core fields changed, reverted to pending", "app", appID)
 			updatedApp, _ := s.Store.GetApp(appID)
 			if updatedApp != nil {
