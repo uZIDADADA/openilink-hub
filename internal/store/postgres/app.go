@@ -433,3 +433,31 @@ func (db *DB) UpdateInstallationTools(id string, tools json.RawMessage) error {
 	_, err := db.Exec(`UPDATE app_installations SET tools = $1, updated_at = NOW() WHERE id = $2`, tools, id)
 	return err
 }
+
+func (db *DB) CreateAppReview(review *store.AppReview) error {
+	if review.ID == "" {
+		review.ID = uuid.New().String()
+	}
+	_, err := db.Exec(`INSERT INTO app_reviews (id, app_id, action, actor_id, reason, version, snapshot, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, EXTRACT(EPOCH FROM NOW())::BIGINT)`,
+		review.ID, review.AppID, review.Action, review.ActorID, review.Reason, review.Version, review.Snapshot)
+	return err
+}
+
+func (db *DB) ListAppReviews(appID string) ([]store.AppReview, error) {
+	rows, err := db.Query(`SELECT id, app_id, action, actor_id, reason, version, snapshot, created_at
+		FROM app_reviews WHERE app_id = $1 ORDER BY created_at DESC`, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var reviews []store.AppReview
+	for rows.Next() {
+		var r store.AppReview
+		if err := rows.Scan(&r.ID, &r.AppID, &r.Action, &r.ActorID, &r.Reason, &r.Version, &r.Snapshot, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		reviews = append(reviews, r)
+	}
+	return reviews, rows.Err()
+}

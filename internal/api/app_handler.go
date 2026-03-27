@@ -23,6 +23,19 @@ func handleAppSkill(w http.ResponseWriter, r *http.Request) {
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`)
 
+func buildListingSnapshot(app *store.App) string {
+	snap := map[string]any{
+		"tools":         app.Tools,
+		"events":        app.Events,
+		"scopes":        app.Scopes,
+		"webhook_url":   app.WebhookURL,
+		"config_schema": app.ConfigSchema,
+		"version":       app.Version,
+	}
+	b, _ := json.Marshal(snap)
+	return string(b)
+}
+
 // POST /api/apps
 func (s *Server) handleCreateApp(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserIDFromContext(r.Context())
@@ -292,6 +305,16 @@ func (s *Server) handleUpdateApp(w http.ResponseWriter, r *http.Request) {
 		if coreChanged {
 			_ = s.Store.SetListing(appID, "pending")
 			slog.Info("listed app core fields changed, reverted to pending", "app", appID)
+			updatedApp, _ := s.Store.GetApp(appID)
+			if updatedApp != nil {
+				s.Store.CreateAppReview(&store.AppReview{
+					AppID:    appID,
+					Action:   "auto_revert",
+					ActorID:  "system",
+					Version:  updatedApp.Version,
+					Snapshot: buildListingSnapshot(updatedApp),
+				})
+			}
 		}
 	}
 
@@ -374,6 +397,13 @@ func (s *Server) handleRequestListing(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "request failed", http.StatusInternalServerError)
 		return
 	}
+	s.Store.CreateAppReview(&store.AppReview{
+		AppID:    app.ID,
+		Action:   "request",
+		ActorID:  auth.UserIDFromContext(r.Context()),
+		Version:  app.Version,
+		Snapshot: buildListingSnapshot(app),
+	})
 	jsonOK(w)
 }
 
@@ -391,6 +421,13 @@ func (s *Server) handleWithdrawListing(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "withdraw failed", http.StatusInternalServerError)
 		return
 	}
+	s.Store.CreateAppReview(&store.AppReview{
+		AppID:    app.ID,
+		Action:   "withdraw",
+		ActorID:  auth.UserIDFromContext(r.Context()),
+		Version:  app.Version,
+		Snapshot: buildListingSnapshot(app),
+	})
 	jsonOK(w)
 }
 
@@ -412,6 +449,22 @@ func (s *Server) handleReviewListing(w http.ResponseWriter, r *http.Request) {
 	if err := s.Store.ReviewListing(appID, req.Approve, req.Reason); err != nil {
 		jsonError(w, "review failed", http.StatusInternalServerError)
 		return
+	}
+	app, _ := s.Store.GetApp(appID)
+	actorID := auth.UserIDFromContext(r.Context())
+	action := "approve"
+	if !req.Approve {
+		action = "reject"
+	}
+	if app != nil {
+		s.Store.CreateAppReview(&store.AppReview{
+			AppID:    appID,
+			Action:   action,
+			ActorID:  actorID,
+			Reason:   req.Reason,
+			Version:  app.Version,
+			Snapshot: buildListingSnapshot(app),
+		})
 	}
 	jsonOK(w)
 }
@@ -512,7 +565,33 @@ func (s *Server) handleAdminSetListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slog.Info("admin set listing", "app_id", appID, "listing", req.Listing)
+	app, _ := s.Store.GetApp(appID)
+	if app != nil {
+		s.Store.CreateAppReview(&store.AppReview{
+			AppID:    appID,
+			Action:   "admin_set",
+			ActorID:  auth.UserIDFromContext(r.Context()),
+			Reason:   req.Listing,
+			Version:  app.Version,
+			Snapshot: buildListingSnapshot(app),
+		})
+	}
 	jsonOK(w)
+}
+
+// GET /api/apps/{id}/reviews
+func (s *Server) handleListAppReviews(w http.ResponseWriter, r *http.Request) {
+	appID := r.PathValue("id")
+	reviews, err := s.Store.ListAppReviews(appID)
+	if err != nil {
+		jsonError(w, "list reviews failed", http.StatusInternalServerError)
+		return
+	}
+	if reviews == nil {
+		reviews = []store.AppReview{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(reviews)
 }
 
 // requireInstallation loads an installation by path IID and verifies it belongs to the app

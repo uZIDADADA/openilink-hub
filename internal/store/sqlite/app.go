@@ -453,3 +453,31 @@ func (db *DB) UpdateInstallationTools(id string, tools json.RawMessage) error {
 	_, err := db.Exec(`UPDATE app_installations SET tools = ?, updated_at = unixepoch() WHERE id = ?`, tools, id)
 	return err
 }
+
+func (db *DB) CreateAppReview(review *store.AppReview) error {
+	if review.ID == "" {
+		review.ID = uuid.New().String()
+	}
+	_, err := db.Exec(`INSERT INTO app_reviews (id, app_id, action, actor_id, reason, version, snapshot, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, unixepoch())`,
+		review.ID, review.AppID, review.Action, review.ActorID, review.Reason, review.Version, review.Snapshot)
+	return err
+}
+
+func (db *DB) ListAppReviews(appID string) ([]store.AppReview, error) {
+	rows, err := db.Query(`SELECT id, app_id, action, actor_id, reason, version, snapshot, created_at
+		FROM app_reviews WHERE app_id = ? ORDER BY created_at DESC`, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var reviews []store.AppReview
+	for rows.Next() {
+		var r store.AppReview
+		if err := rows.Scan(&r.ID, &r.AppID, &r.Action, &r.ActorID, &r.Reason, &r.Version, &r.Snapshot, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		reviews = append(reviews, r)
+	}
+	return reviews, rows.Err()
+}

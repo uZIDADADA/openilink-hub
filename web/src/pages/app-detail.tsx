@@ -578,14 +578,38 @@ function InstallAppSection({ appId }: { appId: string }) {
 
 // ==================== Manage Distribution ====================
 
+const ACTION_LABELS: Record<string, string> = {
+  request: "申请上架",
+  approve: "通过",
+  reject: "拒绝",
+  withdraw: "撤回",
+  auto_revert: "自动回退",
+  admin_set: "管理员操作",
+};
+
+const ACTION_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  request: "outline",
+  approve: "default",
+  reject: "destructive",
+  withdraw: "secondary",
+  auto_revert: "secondary",
+  admin_set: "outline",
+};
+
 function DistributionSection({ app, onUpdate }: { app: any; onUpdate: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.listAppReviews(app.id).then(setReviews).catch(() => {});
+  }, [app.id]);
 
   async function handleRequestListing() {
     setLoading(true);
     try {
       await api.requestListing(app.id);
       onUpdate();
+      api.listAppReviews(app.id).then(setReviews).catch(() => {});
     } catch {}
     setLoading(false);
   }
@@ -644,6 +668,34 @@ function DistributionSection({ app, onUpdate }: { app: any; onUpdate: () => void
           )}
         </CardContent>
       </Card>
+
+      {reviews.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>审核记录</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {reviews.map((review: any) => (
+                <div key={review.id} className="flex items-start gap-3 text-sm">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">
+                    {new Date(review.created_at * 1000).toLocaleString()}
+                  </span>
+                  <Badge variant={ACTION_VARIANTS[review.action] || "outline"} className="shrink-0">
+                    {ACTION_LABELS[review.action] || review.action}
+                  </Badge>
+                  {review.version && (
+                    <span className="text-xs text-muted-foreground">v{review.version}</span>
+                  )}
+                  {review.reason && (
+                    <span className="text-xs text-muted-foreground truncate">{review.reason}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
