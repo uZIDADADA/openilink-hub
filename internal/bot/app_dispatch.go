@@ -238,6 +238,15 @@ func (m *Manager) deliverToInstallation(inst *Instance, installation *store.AppI
 					"data":      event.Data,
 				},
 			}
+			// Write event log for WebSocket delivery
+			envJSON, _ := json.Marshal(envelope)
+			m.appDisp.Store.CreateEventLog(&store.AppEventLog{
+				InstallationID: installation.ID,
+				TraceID:        event.TraceID,
+				EventType:      event.Type,
+				EventID:        event.ID,
+				RequestBody:    string(envJSON),
+			})
 			if err := wsConn.SendJSON(envelope); err != nil {
 				span.EndWithError("ws send: " + err.Error())
 				// Fall through to webhook
