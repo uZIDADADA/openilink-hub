@@ -45,7 +45,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -94,6 +93,7 @@ const statusColors: Record<string, string> = {
 
 function LayoutHeader() {
   const location = useLocation();
+  const { resolvedTheme, setTheme } = useTheme();
 
   const pathSegments = location.pathname.split("/").filter((s) => Boolean(s) && s !== "dashboard");
   const breadcrumbs = pathSegments.map((segment: string, index: number) => {
@@ -144,6 +144,25 @@ function LayoutHeader() {
             className="h-9 w-64 rounded-full bg-muted/50 border-transparent pl-9 pr-4 text-xs font-medium focus:bg-background focus:border-border transition-all outline-none"
           />
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-full"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          aria-label="切换外观主题"
+        >
+          {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" asChild>
+          <a
+            href="https://github.com/openilink/openilink-hub"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub 项目"
+          >
+            <Github className="h-4 w-4" />
+          </a>
+        </Button>
         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full relative">
           <Zap className="h-4 w-4 text-yellow-500 fill-yellow-500/20" />
           <span className="absolute top-2 right-2 size-2 bg-primary rounded-full border-2 border-background animate-pulse" />
@@ -158,7 +177,6 @@ export function Layout() {
   const location = useLocation();
   const [user, setUser] = useState<any>(null);
   const [bots, setBots] = useState<any[]>([]);
-  const { resolvedTheme, setTheme } = useTheme();
 
   useEffect(() => {
     api
@@ -377,29 +395,6 @@ export function Layout() {
                   align="end"
                   sideOffset={8}
                 >
-                  <DropdownMenuItem asChild>
-                    <a
-                      href="https://github.com/openilink/openilink-hub"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="cursor-pointer font-medium"
-                    >
-                      <Github className="mr-2 h-4 w-4" />
-                      GitHub 项目
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-                    className="cursor-pointer font-medium"
-                  >
-                    {resolvedTheme === "dark" ? (
-                      <Sun className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Moon className="mr-2 h-4 w-4" />
-                    )}
-                    切换外观主题
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={async () => {
                       await api.logout();
