@@ -112,15 +112,24 @@ function LayoutHeader() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const pathSegments = location.pathname
+  // Build breadcrumbs from path, skipping segments that are intermediate
+  // parts of a compound route (e.g. "apps" in /accounts/:id/apps/:iid).
+  const rawSegments = location.pathname
     .split("/")
     .filter((s) => Boolean(s) && s !== "dashboard" && s !== "overview");
-  const breadcrumbs = pathSegments.map((segment: string, index: number) => {
-    const path = `/dashboard/${pathSegments.slice(0, index + 1).join("/")}`;
+  const breadcrumbs: { label: string; path: string; isLast: boolean }[] = [];
+  for (let i = 0; i < rawSegments.length; i++) {
+    const segment = rawSegments[i];
+    const path = `/dashboard/${rawSegments.slice(0, i + 1).join("/")}`;
+    // Skip intermediate named segments followed by a dynamic ID
+    // e.g. "apps" in /accounts/:id/apps/:iid — not a standalone route
+    if (i > 0 && i < rawSegments.length - 1 && BREADCRUMB_LABELS[segment] && rawSegments[i + 1]?.length > 20) {
+      continue;
+    }
     let label = BREADCRUMB_LABELS[segment] || segment;
     if (segment.length > 20) label = "详情";
-    return { label, path, isLast: index === pathSegments.length - 1 };
-  });
+    breadcrumbs.push({ label, path, isLast: i === rawSegments.length - 1 });
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background/95 backdrop-blur px-6 sticky top-0 z-40">
